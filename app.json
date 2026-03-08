@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Ritual",
+    "slug": "ritual-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "ritual",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E1B2E"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ritual.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1E1B2E"
+      },
+      "package": "com.ritual.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-av",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1E1B2E"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    }
+  }
+}
