@@ -9,6 +9,10 @@ export default function RitualLayout() {
         contentStyle: { backgroundColor: Colors.background },
         animation: 'slide_from_bottom',
       }}
-    />
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="consent" />
+      <Stack.Screen name="session" />
+    </Stack>
   )
 }

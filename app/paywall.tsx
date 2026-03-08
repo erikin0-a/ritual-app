@@ -13,7 +13,7 @@ export default function PaywallScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Guided Ritual</Text>
+      <Text style={styles.title}>Nightly Premium</Text>
       <Text style={styles.subtitle}>Голос. Музыка. Атмосфера.</Text>
 
       <View style={styles.featureList}>

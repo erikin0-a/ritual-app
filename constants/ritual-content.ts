@@ -95,7 +95,7 @@ export const TRANSITIONS: TransitionPhrase[] = [
   {
     from: 'intro',
     to: 1,
-    text: 'Начинаем Ritual',
+    text: 'Начинаем Ритуал',
     subtext: 'Отложите телефон. Настройтесь друг на друга.',
   },
   {
@@ -130,7 +130,7 @@ export const TRANSITIONS: TransitionPhrase[] = [
 
 export const FINAL_MESSAGE: FinalMessage = {
   title: 'Правил больше нет',
-  body: 'Ritual завершён. Дальше — только вы.',
+  body: 'Ритуал завершён. Дальше — только вы.',
   cta: 'Закрыть',
 }
 

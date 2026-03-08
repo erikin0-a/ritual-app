@@ -1,79 +1,195 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native'
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Colors, Spacing, Typography } from '@/constants/theme'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
 import { useSubscriptionStore } from '@/stores/subscription.store'
-import type { RitualMode } from '@/types'
 
-export default function RitualScreen() {
+export default function RitualModeSelectScreen() {
   const router = useRouter()
   const isPremium = useSubscriptionStore((s) => s.isPremium())
 
-  const handleStart = (mode: RitualMode) => {
-    if (mode === 'guided' && !isPremium) {
+  const handleFree = () => {
+    router.push({ pathname: '/(main)/ritual/session', params: { mode: 'free' } })
+  }
+
+  const handlePremium = () => {
+    if (!isPremium) {
       router.push('/paywall')
       return
     }
-    router.push({ pathname: '/(main)/ritual/session', params: { mode } })
+    router.push('/(main)/ritual/consent')
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Ritual</Text>
-      <Text style={styles.subtitle}>5 раундов · 20–30 минут</Text>
+    <SafeAreaView style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Назад</Text>
+        </Pressable>
 
-      <Pressable style={styles.option} onPress={() => handleStart('free')}>
-        <Text style={styles.optionTitle}>Свободный режим</Text>
-        <Text style={styles.optionDesc}>Таймеры и правила. Без голоса.</Text>
-      </Pressable>
+        <View style={styles.header}>
+          <Text style={styles.title}>Ритуал</Text>
+          <Text style={styles.subtitle}>Выберите режим</Text>
+        </View>
 
-      <Pressable style={[styles.option, styles.optionPremium]} onPress={() => handleStart('guided')}>
-        <Text style={styles.optionTitle}>Guided Ritual ✦</Text>
-        <Text style={styles.optionDesc}>Голос + музыка + задания. Premium.</Text>
-        {!isPremium && <Text style={styles.premiumBadge}>PREMIUM</Text>}
-      </Pressable>
-    </View>
+        {/* Free mode card */}
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+          onPress={handleFree}
+        >
+          <View style={styles.cardTop}>
+            <Text style={styles.cardEmoji}>🕯️</Text>
+            <Text style={styles.cardTitle}>Ритуал Free</Text>
+          </View>
+          <Text style={styles.cardDesc}>
+            Пять раундов с таймерами, заданиями и правилами. Без голоса — только вы двое.
+          </Text>
+          <View style={styles.cardFeatures}>
+            <Text style={styles.feature}>✓ 5 раундов · 20–30 мин</Text>
+            <Text style={styles.feature}>✓ Таймер и правила</Text>
+            <Text style={styles.feature}>✓ Рулетка и выбор партнёра</Text>
+          </View>
+          <View style={styles.startRow}>
+            <Text style={styles.startText}>Начать →</Text>
+          </View>
+        </Pressable>
+
+        {/* Premium mode card */}
+        <Pressable
+          style={({ pressed }) => [styles.card, styles.cardPremium, pressed && styles.cardPressed]}
+          onPress={handlePremium}
+        >
+          <View style={styles.cardTop}>
+            <Text style={styles.cardEmoji}>✨</Text>
+            <View style={styles.titleRow}>
+              <Text style={[styles.cardTitle, styles.cardTitlePremium]}>Ритуал Premium</Text>
+              {!isPremium && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>PREMIUM</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <Text style={styles.cardDesc}>
+            Управляемый сценарий с голосовым сопровождением и музыкой. Каждая сцена продумана до деталей.
+          </Text>
+          <View style={styles.cardFeatures}>
+            <Text style={[styles.feature, styles.featurePremium]}>✦ Голосовые реплики</Text>
+            <Text style={[styles.feature, styles.featurePremium]}>✦ Живая фоновая атмосфера</Text>
+            <Text style={[styles.feature, styles.featurePremium]}>✦ Согласие обоих партнёров</Text>
+          </View>
+          <View style={styles.startRow}>
+            <Text style={[styles.startText, styles.startTextPremium]}>
+              {isPremium ? 'Начать →' : 'Оформить подписку →'}
+            </Text>
+          </View>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  content: {
     padding: Spacing.xl,
-    paddingTop: Spacing.xxl * 2,
+    gap: Spacing.lg,
+    paddingBottom: Spacing.xxl,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: Spacing.xs,
+  },
+  backText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  header: {
+    gap: Spacing.xs,
+    paddingTop: Spacing.sm,
   },
   title: {
     ...Typography.h1,
-    marginBottom: Spacing.sm,
   },
   subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xxl,
   },
-  option: {
+  card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
   },
-  optionPremium: {
+  cardPremium: {
     borderColor: Colors.accent,
+    backgroundColor: 'rgba(255, 79, 139, 0.05)',
   },
-  optionTitle: {
+  cardPressed: {
+    opacity: 0.8,
+  },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  cardEmoji: {
+    fontSize: 28,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  cardTitle: {
     ...Typography.h3,
-    marginBottom: Spacing.xs,
   },
-  optionDesc: {
+  cardTitlePremium: {
+    color: Colors.accent,
+  },
+  badge: {
+    backgroundColor: Colors.accent,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: 0.8,
+  },
+  cardDesc: {
     ...Typography.body,
     color: Colors.textSecondary,
+    lineHeight: 22,
   },
-  premiumBadge: {
+  cardFeatures: {
+    gap: Spacing.xs,
+  },
+  feature: {
     ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  featurePremium: {
     color: Colors.accent,
-    marginTop: Spacing.sm,
-    fontWeight: '700',
+  },
+  startRow: {
+    paddingTop: Spacing.xs,
+    alignItems: 'flex-end',
+  },
+  startText: {
+    ...Typography.body,
+    color: Colors.text,
+    fontWeight: '600' as const,
+  },
+  startTextPremium: {
+    color: Colors.accent,
   },
 })

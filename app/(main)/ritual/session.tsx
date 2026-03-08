@@ -28,6 +28,7 @@ import { useRitualStore } from '@/stores/ritual.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { ROUND_CONTENT, FINAL_MESSAGE } from '@/constants/ritual-content'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
+import { AnimatedGradientBackground } from '@/components/ritual/AnimatedGradientBackground'
 import { Analytics } from '@/lib/analytics'
 import type { RitualMode, RoundId } from '@/types'
 
@@ -288,6 +289,7 @@ export default function RitualSessionScreen() {
   if (status === 'completed') {
     return (
       <SafeAreaView style={styles.screen}>
+        {resolvedMode === 'guided' && <AnimatedGradientBackground />}
         <CompletionScreen
           mode={resolvedMode}
           onRestart={() => {
@@ -318,6 +320,7 @@ export default function RitualSessionScreen() {
   if (!roundReady) {
     return (
       <SafeAreaView style={styles.screen}>
+        {resolvedMode === 'guided' && <AnimatedGradientBackground />}
         <View style={styles.header}>
           <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
           <Text style={styles.roundBadge}>Раунд {round.id} · {round.name}</Text>
@@ -334,6 +337,7 @@ export default function RitualSessionScreen() {
   // ── Active round with timer
   return (
     <SafeAreaView style={styles.screen}>
+      {resolvedMode === 'guided' && <AnimatedGradientBackground />}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header: progress + round info */}
         <View style={styles.header}>

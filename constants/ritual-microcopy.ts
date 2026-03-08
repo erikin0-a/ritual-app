@@ -10,7 +10,7 @@ export const MICROCOPY = {
   preRitual: {
     title: 'Готовы начать?',
     subtitle: '20–30 минут только для вас двоих',
-    startButton: 'Начать Ritual',
+    startButton: 'Начать Ритуал',
     preparationHint: 'Найдите уединённое место. Отключите уведомления.',
   },
 
@@ -43,7 +43,7 @@ export const MICROCOPY = {
     exitButton: 'Завершить',
     safetyMessage: 'Вы всегда можете остановиться',
     exitConfirm: {
-      title: 'Завершить Ritual?',
+      title: 'Завершить Ритуал?',
       body: 'Вы уверены? Прогресс не сохранится.',
       cancel: 'Отмена',
       confirm: 'Да, завершить',
@@ -67,7 +67,7 @@ export const MICROCOPY = {
 
   // ====== POST-RITUAL ======
   postRitual: {
-    title: 'Ritual завершён',
+    title: 'Ритуал завершён',
     subtitle: 'Как вам?',
     shareButton: 'Поделиться впечатлением',
     repeatButton: 'Повторить',
