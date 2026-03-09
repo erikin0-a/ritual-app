@@ -2,7 +2,7 @@
  * ConsentScreen — Premium Ritual
  *
  * Shows ritual rules, then animates two large buttons that both partners
- * must press simultaneously (within 600ms of each other) to begin.
+ * must press simultaneously (within 500ms of each other) to begin.
  */
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Pressable, Animated } from 'react-native'
@@ -18,7 +18,7 @@ const RULES = [
   'Будьте полностью присутствующими',
 ]
 
-const CONSENT_WINDOW_MS = 600
+const CONSENT_WINDOW_MS = 500
 
 export default function ConsentScreen() {
   const router = useRouter()

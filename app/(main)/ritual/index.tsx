@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
 import { useSubscriptionStore } from '@/stores/subscription.store'
 import { AppBackground } from '@/components/ui/AmbientBackground'
+import { Analytics } from '@/lib/analytics'
 import type { RitualMode } from '@/types'
 
 export default function RitualModeSelectionScreen() {
@@ -11,8 +12,15 @@ export default function RitualModeSelectionScreen() {
   const isPremium = useSubscriptionStore((s) => s.isPremium())
 
   const handleSelect = (mode: RitualMode) => {
+    if (mode === 'guided') {
+      Analytics.premiumToggleClicked({
+        paywall_source: 'ritual_mode_select',
+        has_premium_access: isPremium,
+      })
+    }
+
     if (mode === 'guided' && !isPremium) {
-      router.push('/paywall')
+      router.push({ pathname: '/paywall', params: { source: 'ritual_mode_select' } })
       return
     }
     // Navigate to setup instead of directly to session

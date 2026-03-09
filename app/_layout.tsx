@@ -16,6 +16,7 @@ import Animated, {
   runOnJS
 } from 'react-native-reanimated'
 import { initAnalytics } from '@/lib/analytics'
+import { initRevenueCat } from '@/lib/revenuecat'
 import { Colors } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { Logo } from '@/components/ui/Logo'
@@ -97,6 +98,7 @@ function RootNavigator() {
 
   useEffect(() => {
     initAnalytics()
+    initRevenueCat().catch(() => {})
     hydrate()
   }, [])
 

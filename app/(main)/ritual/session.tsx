@@ -15,10 +15,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
 import { useRitualStore } from '@/stores/ritual.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useAudioStore } from '@/stores/audio.store'
 import { ROUND_CONTENT, FINAL_MESSAGE } from '@/constants/ritual-content'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
 import { AmbientBackground } from '@/components/ui/AmbientBackground'
 import { RitualIntro } from '@/components/ritual/RitualIntro'
+import { VoiceSubtitle } from '@/components/ritual/VoiceSubtitle'
 import { Analytics } from '@/lib/analytics'
 import type { RitualMode, RoundId } from '@/types'
 
@@ -193,6 +195,10 @@ export default function RitualSessionScreen() {
   } = useRitualStore()
 
   const durationPreference = useAuthStore((s) => s.durationPreference)
+  const partnerName = useAuthStore((s) => s.partnerName)
+
+  // Audio store — only active in guided mode
+  const audioStore = useAudioStore()
 
   // Session phase: guided starts with 'intro', free starts with 'playing'
   const [phase, setPhase] = useState<SessionPhase>(
@@ -221,10 +227,26 @@ export default function RitualSessionScreen() {
     if (phase !== 'playing') return
     startRitual(resolvedMode, durationPreference ?? 'standard')
     Analytics.ritualStarted({ mode: resolvedMode })
-    return () => resetRitual()
+    if (resolvedMode === 'guided') {
+      Analytics.premiumSessionStarted()
+      audioStore.configure()
+      audioStore.setVoiceVariables({
+        NAME1: 'Вы',
+        NAME2: partnerName ?? 'Партнёр',
+      })
+      audioStore.preloadAllGuided()
+      audioStore.preloadRound(1)
+    }
+
+    return () => {
+      resetRitual()
+      if (resolvedMode === 'guided') {
+        audioStore.stop()
+      }
+    }
   }, [phase])
 
-  // Audio: start immediately when screen mounts (for guided)
+  // Audio: start immediately when screen mounts (for guided intro)
   useEffect(() => {
     if (resolvedMode !== 'guided') return
 
@@ -239,10 +261,9 @@ export default function RitualSessionScreen() {
           staysActiveInBackground: true,
         })
 
-        // Music first (loops, quiet)
         const { sound: music } = await Audio.Sound.createAsync(
           require('@/assets/audio/ritual_music.mp3'),
-          { isLooping: true, volume: 0 } // Start silent, fade in
+          { isLooping: true, volume: 0 }
         )
         musicRef.current = music
         if (isMounted) {
@@ -260,7 +281,6 @@ export default function RitualSessionScreen() {
             }
           }, 1000)
 
-          // Fade music in over 3 seconds
           for (let v = 0; v <= 0.4; v += 0.02) {
             await new Promise(r => setTimeout(r, 150))
             if (!isMounted) return
@@ -276,9 +296,7 @@ export default function RitualSessionScreen() {
 
     return () => {
       isMounted = false
-      if (introTimeout) {
-        clearTimeout(introTimeout)
-      }
+      if (introTimeout) clearTimeout(introTimeout)
       musicRef.current?.unloadAsync()
       introRef.current?.unloadAsync()
     }
@@ -288,6 +306,33 @@ export default function RitualSessionScreen() {
   const handleConsentComplete = () => {
     setPhase('playing')
   }
+
+  // When a round becomes ready in guided mode, start music + preload next round
+  useEffect(() => {
+    if (resolvedMode !== 'guided' || !roundReady || currentRound === null) return
+    audioStore.startRound(currentRound)
+    const nextId = (currentRound + 1) as RoundId
+    if (nextId <= 5) {
+      audioStore.preloadRound(nextId)
+    }
+  }, [roundReady, currentRound])
+
+  // Sync pause state to audio playback
+  useEffect(() => {
+    if (resolvedMode !== 'guided') return
+    if (isPaused) {
+      audioStore.pause()
+    } else if (audioStore.isPlaying) {
+      audioStore.resume()
+    }
+  }, [isPaused])
+
+  // Advance audio timeline cues in sync with the ritual timer
+  useEffect(() => {
+    if (resolvedMode !== 'guided' || !roundReady || !round) return
+    const elapsed = round.duration - roundTimeRemaining
+    audioStore.tick(elapsed)
+  }, [roundTimeRemaining])
 
   // Auto-pause on background
   useEffect(() => {
@@ -310,8 +355,8 @@ export default function RitualSessionScreen() {
   // Auto-tick timer
   useEffect(() => {
     if (status !== 'in_round' || !roundReady) return
-    const interval = setInterval(tickTimer, 1000)
-    return () => clearInterval(interval)
+    const interval = globalThis.setInterval(tickTimer, 1000)
+    return () => globalThis.clearInterval(interval)
   }, [status, roundReady, tickTimer])
 
   // Round changes
@@ -331,6 +376,9 @@ export default function RitualSessionScreen() {
   useEffect(() => {
     if (status === 'completed') {
       Analytics.ritualCompleted({ mode: resolvedMode })
+      if (resolvedMode === 'guided') {
+        Analytics.premiumSessionCompleted()
+      }
     }
   }, [status])
 
@@ -358,6 +406,9 @@ export default function RitualSessionScreen() {
             resetRitual()
             startRitual(resolvedMode, durationPreference ?? 'standard')
             Analytics.ritualStarted({ mode: resolvedMode })
+            if (resolvedMode === 'guided') {
+              Analytics.premiumSessionStarted()
+            }
             prevRoundRef.current = null
             setRoundReady(false)
           }}
@@ -381,12 +432,19 @@ export default function RitualSessionScreen() {
 
   // ── SPECIAL PRE-TIMER (rounds 2, 3)
   if (!roundReady) {
+    const preloadPct = resolvedMode === 'guided' && currentRound !== null
+      ? Math.round((audioStore.preloadProgress[currentRound] ?? 0) * 100)
+      : 100
+
     return (
       <SafeAreaView style={styles.screen}>
         <AmbientBackground />
         <View style={styles.header}>
           <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
           <Text style={styles.roundBadge}>Раунд {round.id} · {round.name}</Text>
+          {resolvedMode === 'guided' && preloadPct < 100 && (
+            <Text style={styles.preloadText}>Загрузка аудио {preloadPct}%</Text>
+          )}
         </View>
         {currentRound === 2 ? (
           <RouletteView onReady={() => setRoundReady(true)} />
@@ -422,6 +480,14 @@ export default function RitualSessionScreen() {
         <RulesSection allowed={round.allowed} forbidden={round.forbidden} />
         <Text style={styles.roundDescription}>{round.description}</Text>
       </ScrollView>
+
+      {/* Voice subtitle overlay — guided mode only */}
+      {resolvedMode === 'guided' && (
+        <VoiceSubtitle
+          cue={audioStore.currentCue}
+          partnerName={partnerName ?? undefined}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -476,6 +542,11 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     letterSpacing: 1,
     textTransform: 'uppercase',
+  },
+  preloadText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    opacity: 0.7,
   },
   roundInfo: {
     alignItems: 'center',
