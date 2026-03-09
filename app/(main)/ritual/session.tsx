@@ -1,15 +1,3 @@
-/**
- * RitualSessionScreen — full session with 5 rounds
- *
- * Handles: ERIA-12 (structure), ERIA-13 (timer), ERIA-14 (5 rounds)
- *
- * Round states per round:
- * - Round 1, 4, 5: rules display → timer
- * - Round 2: roulette (who starts) → timer
- * - Round 3: partner choice → timer
- * - All rounds: skip allowed
- * - After round 5: completion screen
- */
 import { useEffect, useState, useRef } from 'react'
 import {
   View,
@@ -21,6 +9,7 @@ import {
   AppState,
   type AppStateStatus,
 } from 'react-native'
+import { Audio } from 'expo-av'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
@@ -28,7 +17,8 @@ import { useRitualStore } from '@/stores/ritual.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { ROUND_CONTENT, FINAL_MESSAGE } from '@/constants/ritual-content'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
-import { AnimatedGradientBackground } from '@/components/ritual/AnimatedGradientBackground'
+import { AmbientBackground } from '@/components/ui/AmbientBackground'
+import { RitualIntro } from '@/components/ritual/RitualIntro'
 import { Analytics } from '@/lib/analytics'
 import type { RitualMode, RoundId } from '@/types'
 
@@ -40,7 +30,6 @@ function RouletteView({ onReady }: { onReady: () => void }) {
   const spinAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    // Animate spin for 2 seconds then reveal
     Animated.loop(
       Animated.timing(spinAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
       { iterations: 10 },
@@ -57,7 +46,6 @@ function RouletteView({ onReady }: { onReady: () => void }) {
     <View style={styles.specialContainer}>
       <Text style={styles.specialTitle}>Кто начинает?</Text>
       <Text style={styles.specialSubtitle}>Рулетка решает</Text>
-
       <View style={styles.rouletteBox}>
         {spinning ? (
           <Text style={styles.rouletteSpinning}>{options[Math.floor(Math.random() * options.length)]}</Text>
@@ -65,7 +53,6 @@ function RouletteView({ onReady }: { onReady: () => void }) {
           <Text style={styles.rouletteResult}>{result}</Text>
         )}
       </View>
-
       {!spinning && (
         <Pressable style={styles.specialButton} onPress={onReady}>
           <Text style={styles.specialButtonText}>Начать раунд</Text>
@@ -84,7 +71,6 @@ function PartnerChoiceView({ onReady }: { onReady: () => void }) {
     <View style={styles.specialContainer}>
       <Text style={styles.specialTitle}>Кто раздевает?</Text>
       <Text style={styles.specialSubtitle}>Выберите, кто начнёт соблазнение</Text>
-
       <View style={styles.choiceRow}>
         <Pressable
           style={[styles.choiceCard, chosen === 'me' && styles.choiceCardSelected]}
@@ -101,7 +87,6 @@ function PartnerChoiceView({ onReady }: { onReady: () => void }) {
           <Text style={[styles.choiceLabel, chosen === 'partner' && styles.choiceLabelSelected]}>Партнёр</Text>
         </Pressable>
       </View>
-
       <Pressable
         style={[styles.specialButton, !chosen && styles.specialButtonDisabled]}
         disabled={!chosen}
@@ -118,20 +103,16 @@ function PartnerChoiceView({ onReady }: { onReady: () => void }) {
 function RoundProgressDots({ currentRound, completedRounds }: { currentRound: RoundId | null; completedRounds: RoundId[] }) {
   return (
     <View style={styles.progressRow}>
-      {([1, 2, 3, 4, 5] as RoundId[]).map((id) => {
-        const isDone = completedRounds.includes(id)
-        const isCurrent = currentRound === id
-        return (
-          <View
-            key={id}
-            style={[
-              styles.progressDot,
-              isDone && styles.progressDotDone,
-              isCurrent && styles.progressDotCurrent,
-            ]}
-          />
-        )
-      })}
+      {([1, 2, 3, 4, 5] as RoundId[]).map((id) => (
+        <View
+          key={id}
+          style={[
+            styles.progressDot,
+            completedRounds.includes(id) && styles.progressDotDone,
+            currentRound === id && styles.progressDotCurrent,
+          ]}
+        />
+      ))}
     </View>
   )
 }
@@ -189,7 +170,8 @@ function CompletionScreen({ mode, onRestart, onClose }: { mode: RitualMode; onRe
   )
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── Session phases ──────────────────────────────────────────────────────────
+type SessionPhase = 'intro' | 'playing' | 'completed'
 
 export default function RitualSessionScreen() {
   const router = useRouter()
@@ -212,32 +194,105 @@ export default function RitualSessionScreen() {
 
   const durationPreference = useAuthStore((s) => s.durationPreference)
 
-  // Per-round: whether to show the pre-timer special UI (roulette / choice)
+  // Session phase: guided starts with 'intro', free starts with 'playing'
+  const [phase, setPhase] = useState<SessionPhase>(
+    resolvedMode === 'guided' ? 'intro' : 'playing'
+  )
+  const [voiceStartTime, setVoiceStartTime] = useState<number | null>(null)
+
   const [roundReady, setRoundReady] = useState(false)
 
-  // Track previous round to fire analytics on change
   const prevRoundRef = useRef<RoundId | null>(null)
-
-  // Refs for AppState handler (avoid stale closures without re-subscribing)
   const isPausedRef = useRef(isPaused)
   const statusRef = useRef(status)
   const roundReadyRef = useRef(roundReady)
   const wasAutoPausedRef = useRef(false)
+
   useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
   useEffect(() => { statusRef.current = status }, [status])
   useEffect(() => { roundReadyRef.current = roundReady }, [roundReady])
 
+  // Audio refs for cleanup
+  const musicRef = useRef<Audio.Sound | null>(null)
+  const introRef = useRef<Audio.Sound | null>(null)
+
+  // Start ritual only when phase is 'playing'
   useEffect(() => {
+    if (phase !== 'playing') return
     startRitual(resolvedMode, durationPreference ?? 'standard')
     Analytics.ritualStarted({ mode: resolvedMode })
     return () => resetRitual()
-  }, [])
+  }, [phase])
 
-  // Auto-pause on iOS background / auto-resume on foreground
+  // Audio: start immediately when screen mounts (for guided)
+  useEffect(() => {
+    if (resolvedMode !== 'guided') return
+
+    let isMounted = true
+    let introTimeout: ReturnType<typeof setTimeout> | null = null
+    setVoiceStartTime(null)
+
+    const loadAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+        })
+
+        // Music first (loops, quiet)
+        const { sound: music } = await Audio.Sound.createAsync(
+          require('@/assets/audio/ritual_music.mp3'),
+          { isLooping: true, volume: 0 } // Start silent, fade in
+        )
+        musicRef.current = music
+        if (isMounted) {
+          await music.playAsync()
+          introTimeout = setTimeout(async () => {
+            if (!isMounted) return
+            const { sound: intro } = await Audio.Sound.createAsync(
+              require('@/assets/audio/ritual_intro.mp3'),
+              { volume: 1.0 }
+            )
+            introRef.current = intro
+            if (isMounted) {
+              await intro.playAsync()
+              setVoiceStartTime(Date.now())
+            }
+          }, 1000)
+
+          // Fade music in over 3 seconds
+          for (let v = 0; v <= 0.4; v += 0.02) {
+            await new Promise(r => setTimeout(r, 150))
+            if (!isMounted) return
+            await music.setVolumeAsync(v)
+          }
+        }
+      } catch (error) {
+        console.log('Error loading audio:', error)
+      }
+    }
+
+    loadAudio()
+
+    return () => {
+      isMounted = false
+      if (introTimeout) {
+        clearTimeout(introTimeout)
+      }
+      musicRef.current?.unloadAsync()
+      introRef.current?.unloadAsync()
+    }
+  }, [resolvedMode])
+
+  // Consent done → transition to playing
+  const handleConsentComplete = () => {
+    setPhase('playing')
+  }
+
+  // Auto-pause on background
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (statusRef.current !== 'in_round' || !roundReadyRef.current) return
-
       if (nextState === 'background' || nextState === 'inactive') {
         if (!isPausedRef.current) {
           pauseToggle()
@@ -248,26 +303,23 @@ export default function RitualSessionScreen() {
         wasAutoPausedRef.current = false
       }
     }
-
     const subscription = AppState.addEventListener('change', handleAppStateChange)
     return () => subscription.remove()
   }, [])
 
-  // Auto-tick timer every second when in_round and ready
+  // Auto-tick timer
   useEffect(() => {
     if (status !== 'in_round' || !roundReady) return
     const interval = setInterval(tickTimer, 1000)
     return () => clearInterval(interval)
   }, [status, roundReady, tickTimer])
 
-  // When round changes, mark as "not ready" for rounds that need special UI
+  // Round changes
   useEffect(() => {
     if (currentRound === null) return
     if (currentRound !== prevRoundRef.current) {
-      // Rounds 2 and 3 need special setup before timer starts
       const needsSetup = currentRound === 2 || currentRound === 3
       setRoundReady(!needsSetup)
-
       if (prevRoundRef.current !== null) {
         Analytics.ritualRoundCompleted({ round: prevRoundRef.current, mode: resolvedMode })
       }
@@ -275,7 +327,7 @@ export default function RitualSessionScreen() {
     }
   }, [currentRound])
 
-  // Completion analytics
+  // Completion
   useEffect(() => {
     if (status === 'completed') {
       Analytics.ritualCompleted({ mode: resolvedMode })
@@ -285,11 +337,21 @@ export default function RitualSessionScreen() {
   const round = rounds.find((r) => r.id === currentRound)
   const roundContent = currentRound ? ROUND_CONTENT.find((c) => c.roundId === currentRound) : null
 
-  // ── Completion screen
+  // ── INTRO PHASE (guided only): just background + audio + consent
+  if (phase === 'intro') {
+    return (
+      <View style={styles.screen}>
+        <AmbientBackground />
+        <RitualIntro onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
+      </View>
+    )
+  }
+
+  // ── COMPLETED
   if (status === 'completed') {
     return (
       <SafeAreaView style={styles.screen}>
-        {resolvedMode === 'guided' && <AnimatedGradientBackground />}
+        <AmbientBackground />
         <CompletionScreen
           mode={resolvedMode}
           onRestart={() => {
@@ -305,10 +367,11 @@ export default function RitualSessionScreen() {
     )
   }
 
-  // ── Loading
+  // ── LOADING
   if (!round || status !== 'in_round') {
     return (
       <SafeAreaView style={styles.screen}>
+        <AmbientBackground />
         <View style={styles.centerContainer}>
           <Text style={styles.loadingText}>Загрузка...</Text>
         </View>
@@ -316,11 +379,11 @@ export default function RitualSessionScreen() {
     )
   }
 
-  // ── Special pre-timer UI for rounds 2 and 3
+  // ── SPECIAL PRE-TIMER (rounds 2, 3)
   if (!roundReady) {
     return (
       <SafeAreaView style={styles.screen}>
-        {resolvedMode === 'guided' && <AnimatedGradientBackground />}
+        <AmbientBackground />
         <View style={styles.header}>
           <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
           <Text style={styles.roundBadge}>Раунд {round.id} · {round.name}</Text>
@@ -334,26 +397,19 @@ export default function RitualSessionScreen() {
     )
   }
 
-  // ── Active round with timer
+  // ── ACTIVE ROUND
   return (
     <SafeAreaView style={styles.screen}>
-      {resolvedMode === 'guided' && <AnimatedGradientBackground />}
+      <AmbientBackground />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header: progress + round info */}
         <View style={styles.header}>
           <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
           <Text style={styles.roundBadge}>Раунд {round.id} из 5</Text>
         </View>
-
-        {/* Round name + mood setter */}
         <View style={styles.roundInfo}>
           <Text style={styles.roundName}>{round.name}</Text>
-          {roundContent && (
-            <Text style={styles.moodSetter}>{roundContent.moodSetter}</Text>
-          )}
+          {roundContent && <Text style={styles.moodSetter}>{roundContent.moodSetter}</Text>}
         </View>
-
-        {/* Timer */}
         <View style={styles.timerSection}>
           <CircularTimer
             totalSeconds={round.duration}
@@ -363,11 +419,7 @@ export default function RitualSessionScreen() {
             onSkip={advanceRound}
           />
         </View>
-
-        {/* Rules */}
         <RulesSection allowed={round.allowed} forbidden={round.forbidden} />
-
-        {/* Description */}
         <Text style={styles.roundDescription}>{round.description}</Text>
       </ScrollView>
     </SafeAreaView>
@@ -395,8 +447,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
   },
-
-  // Header
   header: {
     alignItems: 'center',
     gap: Spacing.sm,
@@ -427,8 +477,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-
-  // Round info
   roundInfo: {
     alignItems: 'center',
     gap: Spacing.sm,
@@ -443,61 +491,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-
-  // Timer section
   timerSection: {
     alignItems: 'center',
     paddingVertical: Spacing.md,
   },
-
-  // Rules
-  rulesContainer: {
-    gap: Spacing.md,
-  },
-  rulesGroup: {
-    gap: Spacing.sm,
-  },
-  rulesGroupLabel: {
-    ...Typography.caption,
-    letterSpacing: 0.5,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
+  rulesContainer: { gap: Spacing.md },
+  rulesGroup: { gap: Spacing.sm },
+  rulesGroupLabel: { ...Typography.caption, letterSpacing: 0.5 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
-  chipAllowed: {
-    borderColor: 'rgba(100, 220, 120, 0.4)',
-    backgroundColor: 'rgba(100, 220, 120, 0.08)',
-  },
-  chipForbidden: {
-    borderColor: 'rgba(255, 79, 139, 0.3)',
-    backgroundColor: 'rgba(255, 79, 139, 0.06)',
-  },
-  chipTextAllowed: {
-    ...Typography.caption,
-    color: 'rgba(100, 220, 120, 0.9)',
-  },
-  chipTextForbidden: {
-    ...Typography.caption,
-    color: 'rgba(255, 79, 139, 0.8)',
-  },
-
-  // Description
+  chipAllowed: { borderColor: 'rgba(100, 220, 120, 0.4)', backgroundColor: 'rgba(100, 220, 120, 0.08)' },
+  chipForbidden: { borderColor: 'rgba(210, 46, 136, 0.3)', backgroundColor: 'rgba(210, 46, 136, 0.06)' },
+  chipTextAllowed: { ...Typography.caption, color: 'rgba(100, 220, 120, 0.9)' },
+  chipTextForbidden: { ...Typography.caption, color: 'rgba(210, 46, 136, 0.8)' },
   roundDescription: {
     ...Typography.body,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
-
-  // Special (roulette / choice)
   specialContainer: {
     flex: 1,
     alignItems: 'center',
@@ -505,15 +522,8 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     gap: Spacing.xl,
   },
-  specialTitle: {
-    ...Typography.h1,
-    textAlign: 'center',
-  },
-  specialSubtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
+  specialTitle: { ...Typography.h1, textAlign: 'center' },
+  specialSubtitle: { ...Typography.body, color: Colors.textSecondary, textAlign: 'center' },
   rouletteBox: {
     width: 220,
     height: 220,
@@ -523,20 +533,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rouletteSpinning: {
-    ...Typography.h2,
-    color: Colors.textSecondary,
-  },
-  rouletteResult: {
-    ...Typography.h2,
-    color: Colors.accent,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  choiceRow: {
-    flexDirection: 'row',
-    gap: Spacing.lg,
-  },
+  rouletteSpinning: { ...Typography.h2, color: Colors.textSecondary },
+  rouletteResult: { ...Typography.h2, color: Colors.accent, textAlign: 'center', paddingHorizontal: Spacing.lg },
+  choiceRow: { flexDirection: 'row', gap: Spacing.lg },
   choiceCard: {
     width: 130,
     height: 130,
@@ -548,20 +547,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
-  choiceCardSelected: {
-    borderColor: Colors.accent,
-    backgroundColor: 'rgba(255, 79, 139, 0.08)',
-  },
-  choiceEmoji: {
-    fontSize: 36,
-  },
-  choiceLabel: {
-    ...Typography.h3,
-    color: Colors.textSecondary,
-  },
-  choiceLabelSelected: {
-    color: Colors.accent,
-  },
+  choiceCardSelected: { borderColor: Colors.accent, backgroundColor: 'rgba(210, 46, 136, 0.08)' },
+  choiceEmoji: { fontSize: 36 },
+  choiceLabel: { ...Typography.h3, color: Colors.textSecondary },
+  choiceLabelSelected: { color: Colors.accent },
   specialButton: {
     backgroundColor: Colors.accent,
     paddingHorizontal: Spacing.xxl,
@@ -570,15 +559,8 @@ const styles = StyleSheet.create({
     minWidth: 180,
     alignItems: 'center',
   },
-  specialButtonDisabled: {
-    opacity: 0.4,
-  },
-  specialButtonText: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-
-  // Completion
+  specialButtonDisabled: { opacity: 0.4 },
+  specialButtonText: { ...Typography.h3, color: Colors.text },
   completionContainer: {
     flex: 1,
     alignItems: 'center',
@@ -586,41 +568,17 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     gap: Spacing.lg,
   },
-  completionEmoji: {
-    fontSize: 64,
-    marginBottom: Spacing.md,
-  },
-  completionTitle: {
-    ...Typography.h1,
-    textAlign: 'center',
-  },
-  completionBody: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  completionActions: {
-    gap: Spacing.md,
-    width: '100%',
-    marginTop: Spacing.md,
-  },
+  completionEmoji: { fontSize: 64, marginBottom: Spacing.md },
+  completionTitle: { ...Typography.h1, textAlign: 'center' },
+  completionBody: { ...Typography.body, color: Colors.textSecondary, textAlign: 'center', lineHeight: 24 },
+  completionActions: { gap: Spacing.md, width: '100%', marginTop: Spacing.md },
   restartButton: {
     backgroundColor: Colors.accent,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
   },
-  restartButtonText: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  closeButton: {
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
+  restartButtonText: { ...Typography.h3, color: Colors.text },
+  closeButton: { paddingVertical: Spacing.md, alignItems: 'center' },
+  closeButtonText: { ...Typography.body, color: Colors.textSecondary },
 })

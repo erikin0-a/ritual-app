@@ -1,70 +1,91 @@
-import { useEffect, useRef, useState } from 'react'
-import { Animated, View, Text, StyleSheet } from 'react-native'
-import { Stack } from 'expo-router'
-import { router } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { View, StyleSheet, Dimensions } from 'react-native'
+import { Stack, router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming, 
+  withSequence,
+  withDelay,
+  Easing,
+  runOnJS
+} from 'react-native-reanimated'
 import { initAnalytics } from '@/lib/analytics'
-import { Colors, Spacing, Typography } from '@/constants/theme'
+import { Colors } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
+import { Logo } from '@/components/ui/Logo'
 
 const queryClient = new QueryClient()
+const { width, height } = Dimensions.get('window')
 
-// Passionate haptic sequence — fires on splash entry
-async function firePassionateHaptic() {
+// Synchronized haptic sequence
+async function fireSplashHaptics() {
   try {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    await new Promise((r) => setTimeout(r, 120))
+    // Initial impact
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    await new Promise((r) => setTimeout(r, 80))
+    
+    // Heartbeat-like pattern
+    await new Promise(r => setTimeout(r, 400))
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    await new Promise(r => setTimeout(r, 150))
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-    await new Promise((r) => setTimeout(r, 180))
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    await new Promise((r) => setTimeout(r, 100))
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
   } catch {
-    // Haptics not available on simulator — silently ignore
+    // Ignore on unsupported devices
   }
 }
 
-function SplashScreen() {
-  const opacity = useRef(new Animated.Value(0)).current
-  const scale = useRef(new Animated.Value(0.88)).current
-  const glowOpacity = useRef(new Animated.Value(0)).current
+function SplashScreen({ onFinish }: { onFinish: () => void }) {
+  const scale = useSharedValue(0.8)
+  const opacity = useSharedValue(0)
+  const translateY = useSharedValue(20)
+  const glowOpacity = useSharedValue(0)
 
   useEffect(() => {
-    firePassionateHaptic()
+    fireSplashHaptics()
 
-    Animated.parallel([
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 6,
-        tension: 60,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 700,
-        useNativeDriver: true,
-      }),
-      Animated.timing(glowOpacity, {
-        toValue: 0.35,
-        duration: 1200,
-        useNativeDriver: true,
-      }),
-    ]).start()
+    // Logo entrance
+    scale.value = withSpring(1, { damping: 12, stiffness: 90 })
+    opacity.value = withTiming(1, { duration: 800 })
+    translateY.value = withSpring(0, { damping: 12 })
+    
+    // Glow effect
+    glowOpacity.value = withDelay(400, withTiming(0.6, { duration: 1000 }))
+
+    // Exit animation after delay
+    const timeout = setTimeout(() => {
+      scale.value = withTiming(1.2, { duration: 400, easing: Easing.in(Easing.cubic) })
+      opacity.value = withTiming(0, { duration: 300 }, (finished) => {
+        if (finished) {
+          runOnJS(onFinish)()
+        }
+      })
+    }, 2500)
+
+    return () => clearTimeout(timeout)
   }, [])
+
+  const logoStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+    opacity: opacity.value,
+  }))
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [{ scale: 1.5 }],
+  }))
 
   return (
     <View style={styles.splash}>
-      {/* Soft ambient glow */}
-      <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
-
-      <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center', gap: Spacing.md }}>
-        <Text style={styles.splashName}>Nightly</Text>
-        <Text style={styles.splashTagline}>Ваш ежевечерний ритуал близости</Text>
+      <Animated.View style={[styles.glowContainer, glowStyle]}>
+        <View style={styles.glow} />
+      </Animated.View>
+      <Animated.View style={logoStyle}>
+        <Logo width={160} height={144} animated />
       </Animated.View>
     </View>
   )
@@ -77,24 +98,17 @@ function RootNavigator() {
   useEffect(() => {
     initAnalytics()
     hydrate()
-
-    // Splash shows for at least 2.2s
-    const t = setTimeout(() => setSplashDone(true), 2200)
-    return () => clearTimeout(t)
   }, [])
 
   useEffect(() => {
     if (!splashDone || isLoading) return
-    if (isOnboarded) {
-      router.replace('/(main)')
-    } else {
-      router.replace('/(auth)/onboarding')
-    }
-  }, [splashDone, isLoading, isOnboarded])
+    
+    // Always go to main hub, skipping global onboarding
+    router.replace('/(main)')
+  }, [splashDone, isLoading])
 
-  // Show custom splash while hydrating / minimum splash duration not met
-  if (!splashDone || isLoading) {
-    return <SplashScreen />
+  if (!splashDone) {
+    return <SplashScreen onFinish={() => setSplashDone(true)} />
   }
 
   return (
@@ -124,29 +138,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glow: {
+  glowContainer: {
     position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: '#FF4F8B',
-    // Simulated glow via shadow (iOS) / elevation (Android)
-    shadowColor: '#FF4F8B',
+    width: width,
+    height: width,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: Colors.accent,
+    opacity: 0.15,
+    shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 80,
-    elevation: 30,
-  },
-  splashName: {
-    fontSize: 52,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: -1.5,
-  },
-  splashTagline: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.xl,
+    shadowOpacity: 0.8,
+    shadowRadius: 60,
+    elevation: 20,
   },
 })

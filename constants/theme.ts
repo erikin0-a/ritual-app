@@ -1,11 +1,16 @@
 export const Colors = {
-  background: '#1E1B2E',
-  accent: '#FF4F8B',
-  secondary: '#FF8A3D',
+  background: '#0C0C0C',
+  accent: '#D22E88',
+  secondary: '#FF8A3D', // Keep for now or update if needed
   text: '#FFFFFF',
   textSecondary: 'rgba(255, 255, 255, 0.6)',
-  surface: 'rgba(255, 255, 255, 0.08)',
+  surface: '#1A1A1A', // Solid dark surface for better contrast
+  surfaceTransparent: 'rgba(255, 255, 255, 0.08)',
   border: 'rgba(255, 255, 255, 0.12)',
+  
+  // Gradients
+  gradientStart: '#D22E88',
+  gradientEnd: '#6A1B4D',
 } as const
 
 export const Spacing = {
@@ -21,6 +26,7 @@ export const BorderRadius = {
   sm: 8,
   md: 16,
   lg: 24,
+  xl: 32,
   full: 9999,
 } as const
 

@@ -8,7 +8,8 @@ interface SubscriptionStore {
 }
 
 export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
-  status: 'loading',
+  // Temporary dev default so premium-only flows are testable before RevenueCat is wired.
+  status: 'premium',
 
   setStatus: (status) => set({ status }),
 

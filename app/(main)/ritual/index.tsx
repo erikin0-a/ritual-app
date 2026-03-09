@@ -1,195 +1,162 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
 import { useSubscriptionStore } from '@/stores/subscription.store'
+import { AppBackground } from '@/components/ui/AmbientBackground'
+import type { RitualMode } from '@/types'
 
-export default function RitualModeSelectScreen() {
+export default function RitualModeSelectionScreen() {
   const router = useRouter()
   const isPremium = useSubscriptionStore((s) => s.isPremium())
 
-  const handleFree = () => {
-    router.push({ pathname: '/(main)/ritual/session', params: { mode: 'free' } })
-  }
-
-  const handlePremium = () => {
-    if (!isPremium) {
+  const handleSelect = (mode: RitualMode) => {
+    if (mode === 'guided' && !isPremium) {
       router.push('/paywall')
       return
     }
-    router.push('/(main)/ritual/consent')
+    // Navigate to setup instead of directly to session
+    router.push({ pathname: '/(main)/ritual/setup', params: { mode } })
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Назад</Text>
-        </Pressable>
-
+    <View style={styles.container}>
+      <AppBackground />
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Text style={styles.title}>Ритуал</Text>
-          <Text style={styles.subtitle}>Выберите режим</Text>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>← Назад</Text>
+          </Pressable>
         </View>
 
-        {/* Free mode card */}
-        <Pressable
-          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          onPress={handleFree}
-        >
-          <View style={styles.cardTop}>
-            <Text style={styles.cardEmoji}>🕯️</Text>
-            <Text style={styles.cardTitle}>Ритуал Free</Text>
-          </View>
-          <Text style={styles.cardDesc}>
-            Пять раундов с таймерами, заданиями и правилами. Без голоса — только вы двое.
-          </Text>
-          <View style={styles.cardFeatures}>
-            <Text style={styles.feature}>✓ 5 раундов · 20–30 мин</Text>
-            <Text style={styles.feature}>✓ Таймер и правила</Text>
-            <Text style={styles.feature}>✓ Рулетка и выбор партнёра</Text>
-          </View>
-          <View style={styles.startRow}>
-            <Text style={styles.startText}>Начать →</Text>
-          </View>
-        </Pressable>
+        <View style={styles.content}>
+          <Text style={styles.title}>Выберите формат</Text>
+          <Text style={styles.subtitle}>Как вы хотите провести этот вечер?</Text>
 
-        {/* Premium mode card */}
-        <Pressable
-          style={({ pressed }) => [styles.card, styles.cardPremium, pressed && styles.cardPressed]}
-          onPress={handlePremium}
-        >
-          <View style={styles.cardTop}>
-            <Text style={styles.cardEmoji}>✨</Text>
-            <View style={styles.titleRow}>
-              <Text style={[styles.cardTitle, styles.cardTitlePremium]}>Ритуал Premium</Text>
-              {!isPremium && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>PREMIUM</Text>
+          <View style={styles.options}>
+            {/* Guided / Premium Option */}
+            <Pressable 
+              style={({ pressed }) => [styles.card, styles.cardPremium, pressed && styles.cardPressed]}
+              onPress={() => handleSelect('guided')}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardTop}>
+                  <Text style={styles.cardTitle}>Guided Ritual</Text>
+                  {!isPremium && <View style={styles.badge}><Text style={styles.badgeText}>PREMIUM</Text></View>}
                 </View>
-              )}
-            </View>
+                <Text style={styles.cardDesc}>
+                  Полное погружение. Голосовое сопровождение, музыка, специальные задания.
+                </Text>
+              </View>
+              <View style={styles.cardIcon}>
+                <Text style={{ fontSize: 24 }}>✦</Text>
+              </View>
+            </Pressable>
+
+            {/* Free Option */}
+            <Pressable 
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => handleSelect('free')}
+            >
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>Свободный режим</Text>
+                <Text style={styles.cardDesc}>
+                  Классический таймер и карточки с правилами. Без аудио.
+                </Text>
+              </View>
+            </Pressable>
           </View>
-          <Text style={styles.cardDesc}>
-            Управляемый сценарий с голосовым сопровождением и музыкой. Каждая сцена продумана до деталей.
-          </Text>
-          <View style={styles.cardFeatures}>
-            <Text style={[styles.feature, styles.featurePremium]}>✦ Голосовые реплики</Text>
-            <Text style={[styles.feature, styles.featurePremium]}>✦ Живая фоновая атмосфера</Text>
-            <Text style={[styles.feature, styles.featurePremium]}>✦ Согласие обоих партнёров</Text>
-          </View>
-          <View style={styles.startRow}>
-            <Text style={[styles.startText, styles.startTextPremium]}>
-              {isPremium ? 'Начать →' : 'Оформить подписку →'}
-            </Text>
-          </View>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-  content: {
-    padding: Spacing.xl,
-    gap: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
   backButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: Spacing.xs,
+    padding: Spacing.xs,
   },
-  backText: {
+  backButtonText: {
     ...Typography.body,
     color: Colors.textSecondary,
   },
-  header: {
-    gap: Spacing.xs,
-    paddingTop: Spacing.sm,
+  content: {
+    flex: 1,
+    padding: Spacing.xl,
+    justifyContent: 'center',
   },
   title: {
     ...Typography.h1,
+    marginBottom: Spacing.sm,
   },
   subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
+    marginBottom: Spacing.xxl,
+  },
+  options: {
+    gap: Spacing.lg,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   cardPremium: {
+    backgroundColor: 'rgba(210, 46, 136, 0.1)',
     borderColor: Colors.accent,
-    backgroundColor: 'rgba(255, 79, 139, 0.05)',
+    paddingVertical: Spacing.xl,
   },
   cardPressed: {
     opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  cardContent: {
+    flex: 1,
+    gap: Spacing.xs,
   },
   cardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  cardEmoji: {
-    fontSize: 28,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flex: 1,
-  },
   cardTitle: {
     ...Typography.h3,
   },
-  cardTitlePremium: {
-    color: Colors.accent,
+  cardDesc: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  cardIcon: {
+    marginLeft: Spacing.md,
   },
   badge: {
     backgroundColor: Colors.accent,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 4,
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: 0.8,
-  },
-  cardDesc: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-  },
-  cardFeatures: {
-    gap: Spacing.xs,
-  },
-  feature: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  featurePremium: {
-    color: Colors.accent,
-  },
-  startRow: {
-    paddingTop: Spacing.xs,
-    alignItems: 'flex-end',
-  },
-  startText: {
-    ...Typography.body,
-    color: Colors.text,
-    fontWeight: '600' as const,
-  },
-  startTextPremium: {
-    color: Colors.accent,
+    fontWeight: '700',
+    color: '#FFF',
   },
 })
