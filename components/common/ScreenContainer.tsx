@@ -1,6 +1,9 @@
 import { View, StyleSheet, type ViewProps } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Colors, Spacing } from '@/constants/theme'
+import { AmbientBackground } from '@/components/ui/AmbientBackground'
+
+type BackgroundVariant = 'none' | 'app' | 'ritual'
 
 interface ScreenContainerProps extends ViewProps {
   /** Use SafeAreaView to handle notches/home indicators (default: true) */
@@ -8,9 +11,18 @@ interface ScreenContainerProps extends ViewProps {
   /** Horizontal+vertical padding (default: Spacing.xl) */
   padded?: boolean
   centered?: boolean
+  background?: BackgroundVariant
 }
 
-export function ScreenContainer({ safe = true, padded = true, centered = false, style, children, ...rest }: ScreenContainerProps) {
+export function ScreenContainer({
+  safe = true,
+  padded = true,
+  centered = false,
+  background = 'none',
+  style,
+  children,
+  ...rest
+}: ScreenContainerProps) {
   const content = (
     <View
       style={[
@@ -21,6 +33,7 @@ export function ScreenContainer({ safe = true, padded = true, centered = false, 
       ]}
       {...rest}
     >
+      {background !== 'none' && <AmbientBackground variant={background} />}
       {children}
     </View>
   )

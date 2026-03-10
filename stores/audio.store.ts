@@ -8,14 +8,19 @@
  * - Triggering cues based on elapsed time
  */
 import { create } from 'zustand'
-import { AudioService, type VoiceVariables } from '@/lib/audio-service'
+import { AudioService } from '@/lib/audio-service'
 import {
   getAudioTrack,
+  getCueVariant,
   getPreloadItemsForRound,
   getAllGuidedPreloadItems,
   type AudioCue,
 } from '@/constants/audio-timeline'
-import type { RoundId } from '@/types'
+import { DEFAULT_RITUAL_PARTICIPANTS, renderParticipantTemplate } from '@/lib/ritual-participants'
+import type { GuidedBranch, ParticipantId, RitualParticipants, RoundId } from '@/types'
+
+let guidedLibraryPreloadPromise: Promise<void> | null = null
+const roundPreloadPromises = new Map<RoundId, Promise<void>>()
 
 interface AudioStore {
   // State
@@ -23,6 +28,10 @@ interface AudioStore {
   isPaused: boolean
   currentRoundId: RoundId | null
   currentCue: AudioCue | null
+  /** Progress of the full guided manifest/library preload */
+  guidedLibraryProgress: number
+  /** True once the full guided library has been preloaded */
+  isGuidedLibraryReady: boolean
   /** Preload progress: 0–1 per round */
   preloadProgress: Record<number, number>
   /** Set of round IDs that have been fully preloaded */
@@ -31,14 +40,18 @@ interface AudioStore {
   elapsedSeconds: number
   /** Index of next cue to fire in current round's timeline */
   nextCueIndex: number
-  /** Voice variables for ElevenLabs placeholders ({NAME1}, {NAME2}) */
-  voiceVariables: VoiceVariables
+  /** Participants used for guided subtitles and audio manifests */
+  voiceParticipants: RitualParticipants
+  /** Branch-aware rounds (A/B) */
+  roundBranches: Partial<Record<RoundId, GuidedBranch>>
 
   // Actions
   /** Configure audio session — call once at app launch */
   configure: () => Promise<void>
-  /** Set NAME placeholders used for voice synthesis */
-  setVoiceVariables: (variables: VoiceVariables) => void
+  /** Set participants used for guided voice resolution */
+  setVoiceParticipants: (participants: RitualParticipants) => void
+  /** Set current branch for a round (used by branch-aware cues) */
+  setRoundBranch: (roundId: RoundId, branch: GuidedBranch) => void
   /** Preload all audio for a round. Safe to call multiple times. */
   preloadRound: (roundId: RoundId) => Promise<void>
   /** Preload full guided library (music + all script lines). */
@@ -53,8 +66,30 @@ interface AudioStore {
   resume: () => Promise<void>
   /** Stop and release everything */
   stop: () => Promise<void>
+  /** Play a standalone cue outside the round timer */
+  playCue: (cue: {
+    voiceKey: string
+    subtitle?: string
+    highlightedParticipants?: ParticipantId[]
+    fallbackUri?: string
+  }) => Promise<void>
   /** Clear current subtitle */
   clearSubtitle: () => void
+}
+
+function getCueClearDelayMs(subtitle?: string): number {
+  if (!subtitle) return 5000
+  const estimated = Math.max(4200, Math.min(12000, subtitle.length * 72))
+  return estimated
+}
+
+function buildParticipantsFingerprint(participants: RitualParticipants): string {
+  return [
+    participants.p1.name.trim().toLowerCase(),
+    participants.p1.gender,
+    participants.p2.name.trim().toLowerCase(),
+    participants.p2.gender,
+  ].join('|')
 }
 
 export const useAudioStore = create<AudioStore>((set, get) => ({
@@ -62,46 +97,123 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   isPaused: false,
   currentRoundId: null,
   currentCue: null,
+  guidedLibraryProgress: 0,
+  isGuidedLibraryReady: false,
   preloadProgress: {},
   preloadedRounds: new Set(),
   elapsedSeconds: 0,
   nextCueIndex: 0,
-  voiceVariables: { NAME1: 'Вы', NAME2: 'Партнёр' },
+  voiceParticipants: DEFAULT_RITUAL_PARTICIPANTS,
+  roundBranches: {},
 
   configure: async () => {
     await AudioService.configure()
   },
 
-  setVoiceVariables: (variables) => {
+  setVoiceParticipants: (participants) => {
+    const current = get().voiceParticipants
+    const hasChanged =
+      buildParticipantsFingerprint(current) !== buildParticipantsFingerprint(participants)
+
+    if (hasChanged) {
+      guidedLibraryPreloadPromise = null
+      roundPreloadPromises.clear()
+      AudioService.releaseAll().catch(() => null)
+      set({
+        voiceParticipants: participants,
+        guidedLibraryProgress: 0,
+        isGuidedLibraryReady: false,
+        preloadProgress: {},
+        preloadedRounds: new Set(),
+      })
+      return
+    }
+
     set({
-      voiceVariables: {
-        NAME1: variables.NAME1?.trim() || 'Вы',
-        NAME2: variables.NAME2?.trim() || 'Партнёр',
-      },
+      voiceParticipants: participants,
     })
   },
 
-  preloadRound: async (roundId) => {
-    const { preloadedRounds, voiceVariables } = get()
-    if (preloadedRounds.has(roundId)) return
-
-    const items = getPreloadItemsForRound(roundId)
-    await AudioService.preload(items, (progress) => {
-      set((s) => ({
-        preloadProgress: { ...s.preloadProgress, [roundId]: progress },
-      }))
-    }, voiceVariables)
-
-    set((s) => ({
-      preloadedRounds: new Set([...s.preloadedRounds, roundId]),
-      preloadProgress: { ...s.preloadProgress, [roundId]: 1 },
+  setRoundBranch: (roundId, branch) => {
+    set((state) => ({
+      roundBranches: {
+        ...state.roundBranches,
+        [roundId]: branch,
+      },
     }))
   },
 
+  preloadRound: async (roundId) => {
+    const { preloadedRounds, voiceParticipants } = get()
+    if (preloadedRounds.has(roundId)) return
+    const existingPromise = roundPreloadPromises.get(roundId)
+    if (existingPromise) {
+      await existingPromise
+      return
+    }
+
+    const preloadPromise = (async () => {
+      const items = getPreloadItemsForRound(roundId)
+      if (__DEV__) {
+        console.log(`[GuidedAudio] Preloading round ${roundId}`, {
+          participantNames: [voiceParticipants.p1.name, voiceParticipants.p2.name],
+          cueCount: items.length,
+        })
+      }
+      await AudioService.preload(items, (progress) => {
+        set((s) => ({
+          preloadProgress: { ...s.preloadProgress, [roundId]: progress },
+        }))
+      }, voiceParticipants)
+
+      set((s) => ({
+        preloadedRounds: new Set([...s.preloadedRounds, roundId]),
+        preloadProgress: { ...s.preloadProgress, [roundId]: 1 },
+      }))
+    })()
+
+    roundPreloadPromises.set(roundId, preloadPromise)
+    try {
+      await preloadPromise
+    } finally {
+      roundPreloadPromises.delete(roundId)
+    }
+  },
+
   preloadAllGuided: async () => {
-    const { voiceVariables } = get()
-    const items = getAllGuidedPreloadItems()
-    await AudioService.preload(items, undefined, voiceVariables)
+    const { voiceParticipants, isGuidedLibraryReady } = get()
+    if (isGuidedLibraryReady) return
+    if (guidedLibraryPreloadPromise) {
+      await guidedLibraryPreloadPromise
+      return
+    }
+
+    guidedLibraryPreloadPromise = (async () => {
+      const items = getAllGuidedPreloadItems()
+      if (__DEV__) {
+        console.log('[GuidedAudio] Preloading full guided library', {
+          participantNames: [voiceParticipants.p1.name, voiceParticipants.p2.name],
+          cueCount: items.length,
+        })
+      }
+      set({ guidedLibraryProgress: 0 })
+      await AudioService.preload(items, (progress) => {
+        set({ guidedLibraryProgress: progress })
+      }, voiceParticipants)
+      set({
+        guidedLibraryProgress: 1,
+        isGuidedLibraryReady: true,
+      })
+      if (__DEV__) {
+        console.log('[GuidedAudio] Full guided library preloaded')
+      }
+    })()
+
+    try {
+      await guidedLibraryPreloadPromise
+    } finally {
+      guidedLibraryPreloadPromise = null
+    }
   },
 
   startRound: async (roundId) => {
@@ -121,7 +233,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   tick: async (elapsed) => {
-    const { currentRoundId, nextCueIndex, isPaused, voiceVariables } = get()
+    const { currentRoundId, nextCueIndex, isPaused, voiceParticipants, roundBranches } = get()
     if (!currentRoundId || isPaused) return
 
     const track = getAudioTrack(currentRoundId)
@@ -129,26 +241,56 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
 
     set({ elapsedSeconds: elapsed })
 
-    // Fire any cues whose offset <= elapsed and haven't been fired yet
     let idx = nextCueIndex
     while (idx < track.cues.length && track.cues[idx].offsetSeconds <= elapsed) {
       const cue = track.cues[idx]
-      if (cue.type === 'voice') {
-        set({ currentCue: cue })
-        await AudioService.playVoice(cue.voiceKey ?? cue.uri, {
-          variables: voiceVariables,
-          fallbackUri: cue.uri,
+      const branch = roundBranches[currentRoundId]
+      const variant = getCueVariant(cue, branch)
+      const resolvedVoiceKey = variant?.voiceKey ?? cue.voiceKey
+      const resolvedSubtitle = variant?.subtitle ?? cue.subtitle
+      const resolvedParticipants = variant?.highlightedParticipants ?? cue.highlightedParticipants
+      idx += 1
+      set({ nextCueIndex: idx })
+
+      if (cue.type === 'voice' && resolvedVoiceKey) {
+        const fallbackSubtitle = resolvedSubtitle
+          ? renderParticipantTemplate(resolvedSubtitle, voiceParticipants)
+          : undefined
+
+        set({
+          currentCue: {
+            ...cue,
+            voiceKey: resolvedVoiceKey,
+            subtitle: fallbackSubtitle,
+            highlightedParticipants: resolvedParticipants,
+          },
         })
-        // Clear subtitle after a reasonable display duration (10 s)
+
+        const manifest = await AudioService.playVoice(resolvedVoiceKey ?? cue.fallbackUri ?? '', {
+          participants: voiceParticipants,
+          fallbackUri: cue.fallbackUri,
+          subtitleTemplate: resolvedSubtitle,
+          highlightedParticipants: resolvedParticipants,
+        })
+
+        if (manifest) {
+          set({
+            currentCue: {
+              ...cue,
+              voiceKey: resolvedVoiceKey,
+              subtitle: manifest.subtitleText,
+              highlightedParticipants: manifest.highlightedParticipants,
+            },
+          })
+        }
+
         globalThis.setTimeout(() => {
-          if (get().currentCue?.uri === cue.uri) {
+          if (get().currentCue?.voiceKey === resolvedVoiceKey) {
             get().clearSubtitle()
           }
-        }, 10_000)
+        }, getCueClearDelayMs(fallbackSubtitle))
       }
-      idx++
     }
-    set({ nextCueIndex: idx })
   },
 
   pause: async () => {
@@ -169,9 +311,51 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
       currentCue: null,
       elapsedSeconds: 0,
       nextCueIndex: 0,
-      voiceVariables: { NAME1: 'Вы', NAME2: 'Партнёр' },
+      roundBranches: {},
     })
-    await AudioService.releaseAll()
+    await AudioService.stopAll()
+  },
+
+  playCue: async ({ voiceKey, subtitle, highlightedParticipants, fallbackUri }) => {
+    const { voiceParticipants } = get()
+    const renderedSubtitle = subtitle ? renderParticipantTemplate(subtitle, voiceParticipants) : undefined
+
+    set({
+      currentCue: {
+        offsetSeconds: 0,
+        type: 'voice',
+        voiceKey,
+        fallbackUri,
+        subtitle: renderedSubtitle,
+        highlightedParticipants,
+      },
+    })
+
+    const manifest = await AudioService.playVoice(voiceKey, {
+      participants: voiceParticipants,
+      fallbackUri,
+      subtitleTemplate: subtitle,
+      highlightedParticipants,
+    })
+
+    if (manifest) {
+      set({
+        currentCue: {
+          offsetSeconds: 0,
+          type: 'voice',
+          voiceKey,
+          fallbackUri,
+          subtitle: manifest.subtitleText,
+          highlightedParticipants: manifest.highlightedParticipants,
+        },
+      })
+    }
+
+    globalThis.setTimeout(() => {
+      if (get().currentCue?.voiceKey === voiceKey) {
+        get().clearSubtitle()
+      }
+    }, getCueClearDelayMs(renderedSubtitle))
   },
 
   clearSubtitle: () => {

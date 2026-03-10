@@ -2,49 +2,80 @@
  * VoiceSubtitle — animated subtitle bar shown during Premium Guided Ritual.
  *
  * Sits at the bottom of the screen and fades in/out when a voice cue is active.
- * When `isPartnerNamePrompt` is true, it also renders the partner name above the text.
- *
- * MVP: partner name is shown as a styled text overlay (no ElevenLabs name synthesis).
+ * It also renders participant chips for the people referenced in the current cue.
  */
 import { useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, Animated } from 'react-native'
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
+import { BorderRadius, Colors, SemanticColors, Shadows, Spacing, Typography } from '@/constants/theme'
 import type { AudioCue } from '@/constants/audio-timeline'
+import type { RitualParticipants } from '@/types'
 
 interface VoiceSubtitleProps {
   cue: AudioCue | null
-  partnerName?: string
+  participants: RitualParticipants
 }
 
-export function VoiceSubtitle({ cue, partnerName }: VoiceSubtitleProps) {
+const USE_NATIVE_DRIVER = Platform.OS !== 'web'
+
+export function VoiceSubtitle({ cue, participants }: VoiceSubtitleProps) {
   const insets = useSafeAreaInsets()
   const opacity = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(24)).current
 
   useEffect(() => {
     if (cue) {
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start()
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 320,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.spring(translateY, {
+          toValue: 0,
+          damping: 18,
+          stiffness: 170,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+      ]).start()
     } else {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }).start()
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 240,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.timing(translateY, {
+          toValue: 24,
+          duration: 240,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+      ]).start()
     }
-  }, [cue])
+  }, [cue, opacity, translateY])
 
-  // Keep rendering so the fade-out animation can run
+  const highlightedParticipants = cue?.highlightedParticipants?.map((participantId) => participants[participantId]) ?? []
+
   return (
     <Animated.View
-      style={[styles.container, { opacity, paddingBottom: insets.bottom + Spacing.lg }]}
+      style={[
+        styles.container,
+        {
+          opacity,
+          transform: [{ translateY }],
+          paddingBottom: insets.bottom + Spacing.lg,
+        },
+      ]}
       pointerEvents="none"
     >
-      {cue?.isPartnerNamePrompt && partnerName ? (
-        <Text style={styles.partnerName}>{partnerName}</Text>
+      {highlightedParticipants.length > 0 ? (
+        <View style={styles.chipRow}>
+          {highlightedParticipants.map((participant) => (
+            <View key={participant.id} style={styles.participantChip}>
+              <Text style={styles.participantChipText}>{participant.name}</Text>
+            </View>
+          ))}
+        </View>
       ) : null}
       {cue?.subtitle ? (
         <View style={styles.bubble}>
@@ -63,27 +94,40 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: Spacing.sm,
   },
-  partnerName: {
+  participantChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: SemanticColors.chipAccent,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 106, 166, 0.28)',
+  },
+  participantChipText: {
     ...Typography.caption,
     color: Colors.accent,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   bubble: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: BorderRadius.lg,
+    backgroundColor: SemanticColors.subtitleSurface,
+    borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: SemanticColors.hairlineStrong,
     maxWidth: '100%',
+    ...Shadows.soft,
   },
   subtitleText: {
     ...Typography.body,
     textAlign: 'center',
-    lineHeight: 24,
-    color: '#fff',
+    color: Colors.text,
   },
 })

@@ -3,11 +3,12 @@ import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 
 const API_KEY = process.env.EXPO_PUBLIC_AMPLITUDE_API_KEY ?? ''
+const HAS_VALID_API_KEY = Boolean(API_KEY) && API_KEY !== 'your-amplitude-key-here'
 const SESSION_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 const APP_VERSION = Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? 'unknown'
 
 export function initAnalytics() {
-  if (API_KEY) {
+  if (HAS_VALID_API_KEY) {
     amplitude.init(API_KEY)
   }
 }
@@ -22,7 +23,7 @@ function track(event: string, props?: AnalyticsProps) {
     ...props,
   }
 
-  if (!API_KEY) {
+  if (!HAS_VALID_API_KEY) {
     return
   }
 

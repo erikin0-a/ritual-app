@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-03-10T03:41:03.530Z",
+  "names": {
+    "p1": "Дина",
+    "p2": "Эмиль"
+  },
+  "variants": {
+    "round2": "A",
+    "round3": "A"
+  },
+  "selectedBadCueKeys": [],
+  "regeneratedByCue": {
+    "round_1_task_02": 1,
+    "round_2_task_04": 1,
+    "round_3_task_16": 1,
+    "round_5_task_06": 1,
+    "round_5_task_08": 1,
+    "round_5_task_07": 5
+  },
+  "failedByCue": {},
+  "playedCueCount": 37
+}

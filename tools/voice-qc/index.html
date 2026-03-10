@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guided Ritual Voice QA</title>
+  <style>
+    :root {
+      --bg: #0e1116;
+      --card: #171c24;
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --line: #253043;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 16px 40px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+    h2 {
+      margin: 8px 0 10px;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input, select, button, textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0f1520;
+      color: var(--text);
+      padding: 9px 10px;
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      background: #1f2937;
+    }
+    button.primary { background: var(--accent); border-color: #6d28d9; }
+    button.warn { background: #3a2a05; border-color: #8a6508; }
+    button.ok { background: #0f2f1c; border-color: #166534; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row { margin-bottom: 10px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .cue {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #0f1520;
+    }
+    .cue.top-bad { border-color: #7f1d1d; background: #1a1010; }
+    .cue-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+    .cue-title {
+      font-size: 12px;
+      color: #a5b4fc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cue-text {
+      font-size: 13px;
+      line-height: 1.42;
+      margin-bottom: 8px;
+    }
+    .cue-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 6px;
+      align-items: center;
+    }
+    .status {
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #0f1520;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 34px;
+      white-space: pre-wrap;
+    }
+    .small { font-size: 11px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: 6px;
+    }
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>Guided Ritual Voice QA</h1>
+      <div class="row">
+        <label>Supabase URL</label>
+        <input id="supabaseUrl" placeholder="https://...supabase.co" />
+      </div>
+      <div class="row">
+        <label>Supabase anon key</label>
+        <input id="anonKey" placeholder="sb_publishable_..." />
+      </div>
+      <div class="row grid2">
+        <div>
+          <label>Partner 1 name</label>
+          <input id="p1" value="Anna" />
+        </div>
+        <div>
+          <label>Partner 2 name</label>
+          <input id="p2" value="Max" />
+        </div>
+      </div>
+      <div class="row grid2">
+        <div>
+          <label>Round 2 active variant</label>
+          <select id="r2Variant">
+            <option value="A">A (p1 leads)</option>
+            <option value="B">B (p2 leads)</option>
+          </select>
+        </div>
+        <div>
+          <label>Round 3 active variant</label>
+          <select id="r3Variant">
+            <option value="A">A (p1 first)</option>
+            <option value="B">B (p2 first)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="withSignalChip" type="checkbox" style="width:auto;" checked />
+          play rules-change chip
+        </label>
+      </div>
+      <div class="row">
+        <label>Round</label>
+        <select id="roundSelect"></select>
+      </div>
+      <div class="grid2">
+        <button class="primary" id="playRound">Play whole round</button>
+        <button id="stopRound">Stop</button>
+      </div>
+      <div class="grid2" style="margin-top:8px;">
+        <button class="primary" id="playAllRounds">Play full ritual</button>
+        <button class="ok" id="exportReport">Export QA report</button>
+      </div>
+      <div class="grid2" style="margin-top:8px;">
+        <button class="warn" id="regenSelected">Regenerate selected</button>
+        <button class="ok" id="copySelected">Copy selected cues</button>
+      </div>
+      <div class="status" id="status"></div>
+      <p class="muted small">This tool synthesizes directly via <code>guided-audio-preview</code> with your current ElevenLabs model (v3 enabled by secret).</p>
+    </section>
+
+    <section class="card">
+      <h2>Round Cues <span class="tag" id="cueCount">0</span></h2>
+      <div id="cueList"></div>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      cues: [],
+      roundMap: new Map(),
+      cache: new Map(),
+      selectedBad: new Set(),
+      queueAudio: null,
+      stopRequested: false,
+      report: {
+        regeneratedByCue: {},
+        failedByCue: {},
+        playedCueCount: 0,
+      },
+    }
+
+    const els = {
+      supabaseUrl: document.getElementById('supabaseUrl'),
+      anonKey: document.getElementById('anonKey'),
+      p1: document.getElementById('p1'),
+      p2: document.getElementById('p2'),
+      r2Variant: document.getElementById('r2Variant'),
+      r3Variant: document.getElementById('r3Variant'),
+      withSignalChip: document.getElementById('withSignalChip'),
+      roundSelect: document.getElementById('roundSelect'),
+      playRound: document.getElementById('playRound'),
+      playAllRounds: document.getElementById('playAllRounds'),
+      stopRound: document.getElementById('stopRound'),
+      exportReport: document.getElementById('exportReport'),
+      regenSelected: document.getElementById('regenSelected'),
+      copySelected: document.getElementById('copySelected'),
+      status: document.getElementById('status'),
+      cueList: document.getElementById('cueList'),
+      cueCount: document.getElementById('cueCount'),
+    }
+
+    function setStatus(text) {
+      els.status.textContent = text
+    }
+
+    function saveSettings() {
+      const payload = {
+        supabaseUrl: els.supabaseUrl.value.trim(),
+        anonKey: els.anonKey.value.trim(),
+        p1: els.p1.value.trim(),
+        p2: els.p2.value.trim(),
+        r2Variant: els.r2Variant.value,
+        r3Variant: els.r3Variant.value,
+        withSignalChip: Boolean(els.withSignalChip.checked),
+      }
+      localStorage.setItem('guidedVoiceQaSettings', JSON.stringify(payload))
+    }
+
+    function loadSettings() {
+      try {
+        const payload = JSON.parse(localStorage.getItem('guidedVoiceQaSettings') || '{}')
+        if (payload.supabaseUrl) els.supabaseUrl.value = payload.supabaseUrl
+        if (payload.anonKey) els.anonKey.value = payload.anonKey
+        if (payload.p1) els.p1.value = payload.p1
+        if (payload.p2) els.p2.value = payload.p2
+        if (payload.r2Variant) els.r2Variant.value = payload.r2Variant
+        if (payload.r3Variant) els.r3Variant.value = payload.r3Variant
+        if (typeof payload.withSignalChip === 'boolean') els.withSignalChip.checked = payload.withSignalChip
+      } catch {}
+    }
+
+    async function loadEnvDefaults() {
+      try {
+        const response = await fetch('/tools/voice-qc/config.json')
+        if (!response.ok) return
+        const payload = await response.json()
+        if (!els.supabaseUrl.value.trim() && payload?.supabaseUrl) {
+          els.supabaseUrl.value = payload.supabaseUrl
+        }
+        if (!els.anonKey.value.trim() && payload?.anonKey) {
+          els.anonKey.value = payload.anonKey
+        }
+      } catch {}
+    }
+
+    function parseMarkdown(markdown) {
+      const lines = markdown.split(/\r?\n/)
+      const cues = []
+      let cueKey = null
+      let round = null
+      let offset = 0
+      let readingVoice = false
+      let common = []
+      let a = []
+      let b = []
+
+      function flush() {
+        if (!cueKey) return
+        cues.push({ cueKey, round, offset, common: common.join(' ').trim(), a: a.join(' ').trim(), b: b.join(' ').trim() })
+        cueKey = null
+        round = null
+        offset = 0
+        readingVoice = false
+        common = []
+        a = []
+        b = []
+      }
+
+      for (const line of lines) {
+        const cueMatch = line.match(/^####\s+Cue\s+`([^`]+)`\s+\(offset\s+(\d+)s\)/)
+        if (cueMatch) {
+          flush()
+          cueKey = cueMatch[1]
+          offset = Number(cueMatch[2] || 0)
+          const roundMatch = cueKey.match(/round_(\d+)_/)
+          round = roundMatch ? Number(roundMatch[1]) : null
+          continue
+        }
+
+        if (line.trim().startsWith('**Озвучка')) {
+          readingVoice = true
+          continue
+        }
+
+        if (!readingVoice) continue
+
+        const t = line.trim()
+        if (!t || t.startsWith('(') || t.startsWith('#### ') || t === '---') {
+          readingVoice = false
+          continue
+        }
+
+        const mA = t.match(/^Вариант A:\s*(.*)$/)
+        if (mA) { a.push(mA[1]); continue }
+        const mB = t.match(/^Вариант B:\s*(.*)$/)
+        if (mB) { b.push(mB[1]); continue }
+        common.push(t)
+      }
+      flush()
+      return cues.concat(parsePreludeBlocks(lines))
+    }
+
+    function parsePreludeBlocks(lines) {
+      const blocks = []
+
+      function collectAfterHeader(headerPrefix, cueKey, offset) {
+        const start = lines.findIndex((line) => line.trim().startsWith(headerPrefix))
+        if (start === -1) return
+
+        const collected = []
+        for (let i = start + 1; i < lines.length; i += 1) {
+          const t = lines[i].trim()
+          if (!t) continue
+          if (t.startsWith('**Озвучка') || t.startsWith('### ') || t.startsWith('#### ') || t === '---') break
+          if (t.startsWith('(')) break
+          collected.push(t)
+        }
+
+        if (collected.length) {
+          blocks.push({
+            cueKey,
+            round: 0,
+            offset,
+            common: collected.join(' '),
+            a: '',
+            b: '',
+          })
+        }
+      }
+
+      collectAfterHeader('**Озвучка (интро', 'prelude_intro_rules', -180)
+      collectAfterHeader('**Озвучка (согласие', 'prelude_consent_wait', -120)
+      blocks.push({
+        cueKey: 'prelude_consent_success',
+        round: 0,
+        offset: -60,
+        common: 'Согласие получено. Переходим к первому раунду.',
+        a: '',
+        b: '',
+      })
+      return blocks
+    }
+
+    function applyNames(text) {
+      return text
+        .replace(/\{\{p1\.name\}\}/g, els.p1.value.trim() || 'P1')
+        .replace(/\{\{p2\.name\}\}/g, els.p2.value.trim() || 'P2')
+        .replace(/<break[^>]*\/>/g, '…')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
+    function chooseText(cue) {
+      const hasVariants = cue.a || cue.b
+      if (!hasVariants) return applyNames(cue.common)
+      const variant = cue.round === 2 ? els.r2Variant.value : cue.round === 3 ? els.r3Variant.value : 'A'
+      const variantText = variant === 'A' ? cue.a : cue.b
+      return applyNames([cue.common, variantText].filter(Boolean).join(' '))
+    }
+
+    function getActiveVariantForCue(cue) {
+      const hasVariants = cue.a || cue.b
+      if (!hasVariants) return 'base'
+      if (cue.round === 2) return els.r2Variant.value
+      if (cue.round === 3) return els.r3Variant.value
+      return 'A'
+    }
+
+    function getEditableTextForCue(cue) {
+      const variant = getActiveVariantForCue(cue)
+      if (variant === 'A') return cue.a || ''
+      if (variant === 'B') return cue.b || ''
+      return cue.common || ''
+    }
+
+    function isSyntheticPreludeCue(cue) {
+      return String(cue?.cueKey || '').startsWith('prelude_')
+    }
+
+    async function synth(text, cacheKey) {
+      if (state.cache.has(cacheKey)) return state.cache.get(cacheKey)
+
+      const supabaseUrl = els.supabaseUrl.value.trim()
+      const anonKey = els.anonKey.value.trim()
+      if (!supabaseUrl || !anonKey) throw new Error('Fill Supabase URL and anon key.')
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/guided-audio-preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ text }),
+      })
+      if (!response.ok) {
+        let message = `status=${response.status}`
+        try {
+          const payload = await response.json()
+          if (payload?.error) message = payload.error
+        } catch {}
+        throw new Error(message)
+      }
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      state.cache.set(cacheKey, objectUrl)
+      return objectUrl
+    }
+
+    async function playCue(cue) {
+      const text = chooseText(cue)
+      const cacheKey = `${cue.cueKey}|${els.r2Variant.value}|${els.r3Variant.value}|${els.p1.value}|${els.p2.value}|${text}`
+      const src = await synth(text, cacheKey)
+      return new Promise((resolve, reject) => {
+        const audio = new Audio(src)
+        state.queueAudio = audio
+        audio.onended = () => resolve()
+        audio.onerror = () => reject(new Error(`audio failed: ${cue.cueKey}`))
+        audio.play().catch(reject)
+      })
+    }
+
+    async function playSignalChip() {
+      if (!els.withSignalChip.checked) return
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const now = ctx.currentTime
+
+      const beep = (start, freq, duration) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq, start)
+        gain.gain.setValueAtTime(0.0001, start)
+        gain.gain.exponentialRampToValueAtTime(0.16, start + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(start)
+        osc.stop(start + duration + 0.02)
+      }
+
+      beep(now, 980, 0.11)
+      beep(now + 0.14, 1240, 0.12)
+
+      await new Promise((resolve) => setTimeout(resolve, 360))
+      await ctx.close()
+    }
+
+    async function saveCueText(cue, newText) {
+      const response = await fetch('/tools/voice-qc/update-cue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cueKey: cue.cueKey,
+          variant: getActiveVariantForCue(cue),
+          text: newText,
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || `save failed status=${response.status}`)
+      }
+
+      const variant = getActiveVariantForCue(cue)
+      if (variant === 'A') cue.a = newText
+      else if (variant === 'B') cue.b = newText
+      else cue.common = newText
+    }
+
+    function getRoundCues(round) {
+      return (state.roundMap.get(round) || []).slice().sort((a, b) => a.offset - b.offset)
+    }
+
+    function stopRound() {
+      state.stopRequested = true
+      if (state.queueAudio) {
+        state.queueAudio.pause()
+        state.queueAudio.currentTime = 0
+      }
+    }
+
+    async function playWholeRound() {
+      saveSettings()
+      state.stopRequested = false
+      const round = Number(els.roundSelect.value)
+      const cues = getRoundCues(round)
+      if (!cues.length) return
+
+      setStatus(`Playing round ${round} (${cues.length} cues)...`)
+      try {
+        if (round > 0) await playSignalChip()
+        for (let i = 0; i < cues.length; i += 1) {
+          if (state.stopRequested) break
+          setStatus(`Playing ${i + 1}/${cues.length}: ${cues[i].cueKey}`)
+          await playCue(cues[i])
+          if (chooseText(cues[i]).includes('услышите сигнал')) {
+            await playSignalChip()
+          }
+          state.report.playedCueCount += 1
+        }
+        setStatus(state.stopRequested ? 'Stopped.' : 'Round playback finished.')
+      } catch (error) {
+        state.report.failedByCue[`round-${round}`] = (state.report.failedByCue[`round-${round}`] || 0) + 1
+        setStatus(`Playback error: ${error.message}`)
+      }
+    }
+
+    async function playFullRitual() {
+      saveSettings()
+      state.stopRequested = false
+      const rounds = [...state.roundMap.keys()].sort((a, b) => a - b)
+      if (!rounds.length) return
+
+      try {
+        for (const round of rounds) {
+          if (state.stopRequested) break
+          const cues = getRoundCues(round)
+          setStatus(`Playing full ritual: round ${round} (${cues.length} cues)...`)
+          if (round > 0) await playSignalChip()
+          for (let i = 0; i < cues.length; i += 1) {
+            if (state.stopRequested) break
+            setStatus(`Round ${round}: ${i + 1}/${cues.length} ${cues[i].cueKey}`)
+            await playCue(cues[i])
+            if (chooseText(cues[i]).includes('услышите сигнал')) {
+              await playSignalChip()
+            }
+            state.report.playedCueCount += 1
+          }
+        }
+        setStatus(state.stopRequested ? 'Stopped full ritual.' : 'Full ritual playback finished.')
+      } catch (error) {
+        state.report.failedByCue.fullRitual = (state.report.failedByCue.fullRitual || 0) + 1
+        setStatus(`Full ritual error: ${error.message}`)
+      }
+    }
+
+    async function regenerateSelected() {
+      saveSettings()
+      const badKeys = [...state.selectedBad]
+      if (!badKeys.length) {
+        setStatus('No selected cues to regenerate.')
+        return
+      }
+      const round = Number(els.roundSelect.value)
+      const cues = (state.roundMap.get(round) || []).filter((cue) => badKeys.includes(cue.cueKey))
+      if (!cues.length) {
+        setStatus('Selected cues are outside current round.')
+        return
+      }
+
+      setStatus(`Regenerating ${cues.length} cues...`)
+      try {
+        for (const cue of cues) {
+          const text = chooseText(cue)
+          for (const key of [...state.cache.keys()]) {
+            if (key.startsWith(`${cue.cueKey}|`)) {
+              URL.revokeObjectURL(state.cache.get(key))
+              state.cache.delete(key)
+            }
+          }
+          const cacheKey = `${cue.cueKey}|${els.r2Variant.value}|${els.r3Variant.value}|${els.p1.value}|${els.p2.value}|${text}`
+          await synth(text, cacheKey)
+          state.report.regeneratedByCue[cue.cueKey] = (state.report.regeneratedByCue[cue.cueKey] || 0) + 1
+        }
+        setStatus('Regeneration finished.')
+      } catch (error) {
+        setStatus(`Regeneration failed: ${error.message}`)
+      }
+    }
+
+    function copySelected() {
+      const selected = [...state.selectedBad]
+      const payload = {
+        round: Number(els.roundSelect.value),
+        selectedCueKeys: selected,
+        names: { p1: els.p1.value.trim(), p2: els.p2.value.trim() },
+        variants: { round2: els.r2Variant.value, round3: els.r3Variant.value },
+      }
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+        .then(() => setStatus(`Copied ${selected.length} selected cues.`))
+        .catch(() => setStatus('Copy failed.'))
+    }
+
+    function exportReport() {
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        names: { p1: els.p1.value.trim(), p2: els.p2.value.trim() },
+        variants: { round2: els.r2Variant.value, round3: els.r3Variant.value },
+        selectedBadCueKeys: [...state.selectedBad].sort(),
+        regeneratedByCue: state.report.regeneratedByCue,
+        failedByCue: state.report.failedByCue,
+        playedCueCount: state.report.playedCueCount,
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const href = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = `guided-voice-qa-report-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(href)
+      setStatus('QA report exported.')
+    }
+
+    function renderRound() {
+      const round = Number(els.roundSelect.value)
+      const cues = getRoundCues(round)
+      els.cueCount.textContent = `${cues.length}`
+      els.cueList.innerHTML = ''
+
+      for (const cue of cues) {
+        const text = chooseText(cue)
+        const isBad = state.selectedBad.has(cue.cueKey)
+        const editableText = getEditableTextForCue(cue)
+        const activeVariant = getActiveVariantForCue(cue)
+        const preludeReadonly = isSyntheticPreludeCue(cue)
+        const item = document.createElement('div')
+        item.className = `cue ${isBad ? 'top-bad' : ''}`
+        item.innerHTML = `
+          <div class="cue-head">
+            <div class="cue-title">${cue.cueKey} <span class="tag">offset ${cue.offset}s</span><span class="tag">edit ${activeVariant}</span></div>
+          </div>
+          <div class="cue-text">${text}</div>
+          <textarea data-edit="${cue.cueKey}" rows="3" ${preludeReadonly ? 'readonly' : ''}>${editableText}</textarea>
+          <div class="cue-controls">
+            <button data-play="${cue.cueKey}">Play cue</button>
+            <button data-regen="${cue.cueKey}" class="warn">Regenerate cue</button>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);justify-content:flex-end;">
+              <input style="width:auto;" type="checkbox" data-bad="${cue.cueKey}" ${isBad ? 'checked' : ''} />
+              bad
+            </label>
+          </div>
+          <div class="cue-controls" style="margin-top:6px;">
+            ${preludeReadonly
+              ? '<span class="muted small">Prelude block is playback-only.</span><span></span><span></span>'
+              : `<button data-save="${cue.cueKey}" class="ok">Save text</button>
+                 <button data-save-regen="${cue.cueKey}" class="primary">Save + regenerate</button>
+                 <span></span>`}
+          </div>
+        `
+        els.cueList.appendChild(item)
+      }
+
+      els.cueList.querySelectorAll('[data-play]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            const cue = cues.find((c) => c.cueKey === btn.dataset.play)
+            setStatus(`Playing ${cue.cueKey}...`)
+            await playCue(cue)
+            setStatus(`Played ${cue.cueKey}.`)
+          } catch (error) {
+            setStatus(`Cue playback failed: ${error.message}`)
+          }
+        })
+      })
+
+      els.cueList.querySelectorAll('[data-regen]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cue = cues.find((c) => c.cueKey === btn.dataset.regen)
+          try {
+            setStatus(`Regenerating ${cue.cueKey}...`)
+            const text = chooseText(cue)
+            for (const key of [...state.cache.keys()]) {
+              if (key.startsWith(`${cue.cueKey}|`)) {
+                URL.revokeObjectURL(state.cache.get(key))
+                state.cache.delete(key)
+              }
+            }
+            const cacheKey = `${cue.cueKey}|${els.r2Variant.value}|${els.r3Variant.value}|${els.p1.value}|${els.p2.value}|${text}`
+            await synth(text, cacheKey)
+            state.report.regeneratedByCue[cue.cueKey] = (state.report.regeneratedByCue[cue.cueKey] || 0) + 1
+            setStatus(`Regenerated ${cue.cueKey}.`)
+          } catch (error) {
+            state.report.failedByCue[cue.cueKey] = (state.report.failedByCue[cue.cueKey] || 0) + 1
+            setStatus(`Regenerate failed: ${error.message}`)
+          }
+        })
+      })
+
+      els.cueList.querySelectorAll('[data-save]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cue = cues.find((c) => c.cueKey === btn.dataset.save)
+          if (isSyntheticPreludeCue(cue)) {
+            setStatus('Prelude block is playback-only. Use Regenerate cue.')
+            return
+          }
+          const textarea = els.cueList.querySelector(`[data-edit="${cue.cueKey}"]`)
+          const newText = (textarea?.value || '').trim()
+          if (!newText) {
+            setStatus('Text cannot be empty.')
+            return
+          }
+          try {
+            setStatus(`Saving ${cue.cueKey}...`)
+            await saveCueText(cue, newText)
+            setStatus(`Saved ${cue.cueKey}.`)
+            renderRound()
+          } catch (error) {
+            setStatus(`Save failed: ${error.message}`)
+          }
+        })
+      })
+
+      els.cueList.querySelectorAll('[data-save-regen]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cue = cues.find((c) => c.cueKey === btn.dataset.saveRegen)
+          if (isSyntheticPreludeCue(cue)) {
+            setStatus('Prelude block is playback-only. Use Regenerate cue.')
+            return
+          }
+          const textarea = els.cueList.querySelector(`[data-edit="${cue.cueKey}"]`)
+          const newText = (textarea?.value || '').trim()
+          if (!newText) {
+            setStatus('Text cannot be empty.')
+            return
+          }
+          try {
+            setStatus(`Saving ${cue.cueKey}...`)
+            await saveCueText(cue, newText)
+            for (const key of [...state.cache.keys()]) {
+              if (key.startsWith(`${cue.cueKey}|`)) {
+                URL.revokeObjectURL(state.cache.get(key))
+                state.cache.delete(key)
+              }
+            }
+            const text = chooseText(cue)
+            const cacheKey = `${cue.cueKey}|${els.r2Variant.value}|${els.r3Variant.value}|${els.p1.value}|${els.p2.value}|${text}`
+            await synth(text, cacheKey)
+            state.report.regeneratedByCue[cue.cueKey] = (state.report.regeneratedByCue[cue.cueKey] || 0) + 1
+            setStatus(`Saved + regenerated ${cue.cueKey}.`)
+            renderRound()
+          } catch (error) {
+            state.report.failedByCue[cue.cueKey] = (state.report.failedByCue[cue.cueKey] || 0) + 1
+            setStatus(`Save + regenerate failed: ${error.message}`)
+          }
+        })
+      })
+
+      els.cueList.querySelectorAll('[data-bad]').forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+          const key = checkbox.dataset.bad
+          if (checkbox.checked) state.selectedBad.add(key)
+          else state.selectedBad.delete(key)
+          renderRound()
+        })
+      })
+    }
+
+    async function init() {
+      loadSettings()
+      await loadEnvDefaults()
+      const markdown = await fetch('/guided-ritual-script.md').then((r) => r.text())
+      state.cues = parseMarkdown(markdown).filter((cue) => Number.isFinite(cue.round))
+      for (const cue of state.cues) {
+        if (!state.roundMap.has(cue.round)) state.roundMap.set(cue.round, [])
+        state.roundMap.get(cue.round).push(cue)
+      }
+
+      const rounds = [...state.roundMap.keys()].sort((a, b) => a - b)
+      for (const round of rounds) {
+        const option = document.createElement('option')
+        option.value = String(round)
+        option.textContent = round === 0
+          ? 'Start: rules + consent + round 1 launch'
+          : `Round ${round}`
+        els.roundSelect.appendChild(option)
+      }
+      els.roundSelect.value = rounds.includes(0) ? '0' : String(rounds[0] || 0)
+
+      ;[
+        els.supabaseUrl, els.anonKey, els.p1, els.p2,
+        els.r2Variant, els.r3Variant, els.withSignalChip, els.roundSelect,
+      ].forEach((el) => el.addEventListener('change', () => {
+        saveSettings()
+        renderRound()
+      }))
+
+      els.playRound.addEventListener('click', playWholeRound)
+      els.playAllRounds.addEventListener('click', playFullRitual)
+      els.stopRound.addEventListener('click', stopRound)
+      els.exportReport.addEventListener('click', exportReport)
+      els.regenSelected.addEventListener('click', regenerateSelected)
+      els.copySelected.addEventListener('click', copySelected)
+
+      renderRound()
+      setStatus('Ready. Choose round and press "Play whole round".')
+    }
+
+    init().catch((error) => {
+      setStatus(`Init failed: ${error.message}`)
+    })
+  </script>
+</body>
+</html>
+

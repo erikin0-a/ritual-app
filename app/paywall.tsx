@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Colors, Spacing, Typography } from '@/constants/theme'
+import { Colors, SemanticColors, Shadows, Spacing, Typography } from '@/constants/theme'
 import { Analytics } from '@/lib/analytics'
 import { getPaywallPlanPrice, initRevenueCat, purchasePlan, restoreSubscriptions } from '@/lib/revenuecat'
 import { useEffect, useState } from 'react'
 import { useSubscriptionStore } from '@/stores/subscription.store'
+import { isPremiumBypassEnabled } from '@/lib/premium-bypass'
+import { ScreenContainer } from '@/components/common/ScreenContainer'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 
 export default function PaywallScreen() {
   const router = useRouter()
@@ -21,6 +25,8 @@ export default function PaywallScreen() {
   }, [paywallSource])
 
   useEffect(() => {
+    if (isPremiumBypassEnabled) return
+
     let cancelled = false
 
     async function loadPrices() {
@@ -50,7 +56,7 @@ export default function PaywallScreen() {
     if (!isPremium) return
 
     if (paywallSource === 'ritual_mode_select') {
-      router.replace('/(main)/ritual/consent')
+      router.replace({ pathname: '/(main)/ritual/setup', params: { mode: 'guided' } })
       return
     }
 
@@ -58,6 +64,11 @@ export default function PaywallScreen() {
   }, [isPremium, paywallSource, router])
 
   async function handlePurchase(plan: 'annual' | 'monthly') {
+    if (isPremiumBypassEnabled) {
+      useSubscriptionStore.getState().setStatus('premium')
+      return
+    }
+
     setErrorText(null)
     setLoadingAction(plan)
 
@@ -78,6 +89,11 @@ export default function PaywallScreen() {
   }
 
   async function handleRestore() {
+    if (isPremiumBypassEnabled) {
+      useSubscriptionStore.getState().setStatus('premium')
+      return
+    }
+
     setErrorText(null)
     setLoadingAction('restore')
     try {
@@ -91,101 +107,136 @@ export default function PaywallScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Nightly Premium</Text>
-      <Text style={styles.subtitle}>Голос. Музыка. Атмосфера.</Text>
+    <ScreenContainer background="app" safe={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Button title="Не сейчас" variant="ghost" size="md" onPress={() => router.back()} />
+        </View>
 
-      <View style={styles.featureList}>
-        {['Голосовые подсказки', 'Атмосферная музыка', 'Задания в каждом раунде', 'Неограниченный доступ'].map(
-          (feature) => (
-            <Text key={feature} style={styles.feature}>
-              ✦ {feature}
-            </Text>
-          ),
-        )}
-      </View>
+        <Card variant="highlighted" style={styles.heroCard}>
+          <Text style={styles.eyebrow}>Nightly Premium</Text>
+          <Text style={styles.title}>Голос. Музыка. Атмосфера. Полный Guided Ritual.</Text>
+          <Text style={styles.subtitle}>
+            Премиум открывает режиссируемый session flow: интро, consent, правила, голосовые cues, мягкие transitions и финальный guided runtime.
+          </Text>
+          <View style={styles.featureList}>
+            {['Голосовые подсказки с именами', 'Атмосферная музыка и chip signal', 'Полный сценарий по раундам', 'Доступ ко всем premium обновлениям'].map((feature) => (
+              <View key={feature} style={styles.featurePill}>
+                <Text style={styles.feature}>{feature}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
 
-      <Pressable
-        style={[styles.primaryButton, loadingAction === 'annual' && styles.buttonDisabled]}
-        disabled={loadingAction !== null}
-        onPress={() => {
-          Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'start_trial_annual' })
-          handlePurchase('annual').catch(() => {})
-        }}
-      >
-        {loadingAction === 'annual' ? (
-          <ActivityIndicator color={Colors.text} />
-        ) : (
-          <Text style={styles.primaryButtonText}>Начать trial 7 дней</Text>
-        )}
-      </Pressable>
-      <Text style={styles.price}>
-        Затем {annualPrice ?? '$39.99'} / год · Отмена в любое время
-      </Text>
+        <Card variant="raised" style={styles.planCard}>
+          <Text style={styles.planTitle}>Годовой план</Text>
+          <Text style={styles.planPrice}>{annualPrice ?? '$39.99'} / год</Text>
+          <Text style={styles.planMeta}>7 дней trial, затем можно отменить в любой момент</Text>
+          <Pressable
+            style={[styles.primaryButton, loadingAction === 'annual' && styles.buttonDisabled]}
+            disabled={loadingAction !== null}
+            onPress={() => {
+              Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'start_trial_annual' })
+              handlePurchase('annual').catch(() => {})
+            }}
+          >
+            {loadingAction === 'annual' ? <ActivityIndicator color={Colors.text} /> : <Text style={styles.primaryButtonText}>Начать trial 7 дней</Text>}
+          </Pressable>
+        </Card>
 
-      <Pressable
-        style={[styles.secondaryButton, loadingAction === 'monthly' && styles.buttonDisabled]}
-        disabled={loadingAction !== null}
-        onPress={() => {
-          Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'subscribe_monthly' })
-          handlePurchase('monthly').catch(() => {})
-        }}
-      >
-        {loadingAction === 'monthly' ? (
-          <ActivityIndicator color={Colors.accent} />
-        ) : (
-          <Text style={styles.secondaryButtonText}>Подписка {monthlyPrice ?? '$5.99'} / месяц</Text>
-        )}
-      </Pressable>
+        <Card variant="subtle" style={styles.planCard}>
+          <Text style={styles.planTitle}>Месячный план</Text>
+          <Text style={styles.planPrice}>{monthlyPrice ?? '$5.99'} / месяц</Text>
+          <Text style={styles.planMeta}>Подходит, если хотите попробовать guided mode без длинной подписки</Text>
+          <Pressable
+            style={[styles.secondaryButton, loadingAction === 'monthly' && styles.buttonDisabled]}
+            disabled={loadingAction !== null}
+            onPress={() => {
+              Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'subscribe_monthly' })
+              handlePurchase('monthly').catch(() => {})
+            }}
+          >
+            {loadingAction === 'monthly' ? <ActivityIndicator color={Colors.accent} /> : <Text style={styles.secondaryButtonText}>Оформить месячную подписку</Text>}
+          </Pressable>
+        </Card>
 
-      <Pressable
-        disabled={loadingAction !== null}
-        onPress={() => {
-          Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'restore_purchases' })
-          handleRestore().catch(() => {})
-        }}
-      >
-        {loadingAction === 'restore' ? (
-          <ActivityIndicator color={Colors.textSecondary} />
-        ) : (
-          <Text style={styles.restore}>Восстановить покупки</Text>
-        )}
-      </Pressable>
+        <Button
+          title={loadingAction === 'restore' ? 'Восстанавливаем...' : 'Восстановить покупки'}
+          variant="ghost"
+          onPress={() => {
+            Analytics.paywallCtaClicked({ paywall_source: paywallSource, cta: 'restore_purchases' })
+            handleRestore().catch(() => {})
+          }}
+          disabled={loadingAction !== null}
+          fullWidth
+        />
 
-      {errorText && <Text style={styles.errorText}>{errorText}</Text>}
-
-      <Pressable onPress={() => router.back()}>
-        <Text style={styles.skip}>Не сейчас</Text>
-      </Pressable>
-    </View>
+        {errorText && <Text style={styles.errorText}>{errorText}</Text>}
+      </ScrollView>
+    </ScreenContainer>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: Colors.background,
     padding: Spacing.xl,
-    paddingTop: Spacing.xxl * 2,
-    alignItems: 'center',
+    paddingTop: Spacing.xxxl,
+    paddingBottom: Spacing.xxxl,
+    gap: Spacing.lg,
+  },
+  header: {
+    alignItems: 'flex-start',
+  },
+  heroCard: {
+    gap: Spacing.md,
+    ...Shadows.glow,
+  },
+  eyebrow: {
+    ...Typography.label,
+    color: Colors.accent,
   },
   title: {
-    ...Typography.h1,
-    marginBottom: Spacing.sm,
+    ...Typography.display,
+    fontSize: 34,
   },
   subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xxl,
   },
   featureList: {
-    alignSelf: 'stretch',
-    marginBottom: Spacing.xxl,
-    gap: Spacing.md,
+    gap: Spacing.sm,
+  },
+  featurePill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: SemanticColors.hairline,
   },
   feature: {
-    ...Typography.body,
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  planCard: {
+    gap: Spacing.sm,
+  },
+  planTitle: {
+    ...Typography.h3,
+  },
+  planPrice: {
+    ...Typography.h2,
+  },
+  planMeta: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  primaryButtonText: {
+    ...Typography.bodyStrong,
     color: Colors.text,
+  },
+  buttonDisabled: {
+    opacity: 0.65,
   },
   primaryButton: {
     backgroundColor: Colors.accent,
@@ -194,47 +245,27 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignSelf: 'stretch',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  primaryButtonText: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  buttonDisabled: {
-    opacity: 0.65,
-  },
-  price: {
-    ...Typography.caption,
-    marginBottom: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: SemanticColors.hairlineStrong,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: 32,
     alignSelf: 'stretch',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    marginTop: Spacing.sm,
   },
   secondaryButtonText: {
-    ...Typography.body,
-    color: Colors.accent,
+    ...Typography.bodyStrong,
+    color: Colors.text,
     fontWeight: '600' as const,
-  },
-  restore: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
   },
   errorText: {
     ...Typography.caption,
-    color: Colors.secondary,
+    color: Colors.danger,
     textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  skip: {
-    ...Typography.body,
-    color: Colors.textSecondary,
   },
 })

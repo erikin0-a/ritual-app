@@ -1,6 +1,7 @@
 import Purchases, { type CustomerInfo, type PurchasesOffering, type PurchasesPackage } from 'react-native-purchases'
 import { Platform } from 'react-native'
 import { useSubscriptionStore } from '@/stores/subscription.store'
+import { isPremiumBypassEnabled } from '@/lib/premium-bypass'
 
 const IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? ''
 const ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? ''
@@ -75,6 +76,11 @@ function ensureConfigured() {
 
 export async function initRevenueCat(): Promise<boolean> {
   if (isConfigured) return true
+
+  if (isPremiumBypassEnabled) {
+    useSubscriptionStore.getState().setStatus('premium')
+    return false
+  }
 
   const apiKey = getApiKey()
   if (!apiKey) {

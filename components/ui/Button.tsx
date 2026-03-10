@@ -1,24 +1,37 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, type PressableProps } from 'react-native'
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme'
+import { BorderRadius, Colors, SemanticColors, Shadows, Spacing, Typography } from '@/constants/theme'
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost'
+type Size = 'md' | 'lg'
 
 interface ButtonProps extends PressableProps {
   title: string
   variant?: Variant
+  size?: Size
   loading?: boolean
   fullWidth?: boolean
 }
 
-export function Button({ title, variant = 'primary', loading = false, fullWidth = false, disabled, style, ...rest }: ButtonProps) {
+export function Button({
+  title,
+  variant = 'primary',
+  size = 'lg',
+  loading = false,
+  fullWidth = false,
+  disabled,
+  style,
+  ...rest
+}: ButtonProps) {
   const isDisabled = disabled || loading
 
   return (
     <Pressable
-      style={[
+      style={({ pressed }) => [
         styles.base,
+        styles[size],
         styles[variant],
         fullWidth && styles.fullWidth,
+        pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style as object,
       ]}
@@ -28,7 +41,7 @@ export function Button({ title, variant = 'primary', loading = false, fullWidth 
       {loading ? (
         <ActivityIndicator color={variant === 'primary' ? Colors.text : Colors.accent} size="small" />
       ) : (
-        <Text style={[styles.label, styles[`${variant}Label`]]}>{title}</Text>
+        <Text style={[styles.label, size === 'md' && styles.labelMd, styles[`${variant}Label`]]}>{title}</Text>
       )}
     </Pressable>
   )
@@ -39,37 +52,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     minHeight: 52,
+    ...Shadows.soft,
+  },
+  md: {
+    minHeight: 48,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 12,
+  },
+  lg: {
+    minHeight: 56,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 16,
   },
   fullWidth: {
     alignSelf: 'stretch',
   },
+  pressed: {
+    transform: [{ scale: 0.985 }],
+  },
   disabled: {
-    opacity: 0.4,
+    opacity: 0.45,
   },
 
-  // Variants
   primary: {
     backgroundColor: Colors.accent,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: Colors.accent,
+    shadowOpacity: 0.24,
+    shadowRadius: 22,
   },
   secondary: {
-    backgroundColor: Colors.secondary,
+    backgroundColor: SemanticColors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: SemanticColors.hairline,
   },
   outline: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: 'transparent',
+    borderColor: SemanticColors.hairlineStrong,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   ghost: {
     backgroundColor: 'transparent',
   },
 
-  // Labels
   label: {
-    ...Typography.h3,
+    ...Typography.bodyStrong,
+  },
+  labelMd: {
+    fontSize: 15,
+    lineHeight: 20,
   },
   primaryLabel: {
     color: Colors.text,
@@ -78,7 +112,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   outlineLabel: {
-    color: Colors.textSecondary,
+    color: Colors.text,
   },
   ghostLabel: {
     color: Colors.textSecondary,

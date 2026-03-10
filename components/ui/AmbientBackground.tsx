@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { StyleSheet, View, Dimensions, Platform } from 'react-native'
+import { StyleSheet, View, useWindowDimensions, Platform } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,25 +9,20 @@ import Animated, {
   withDelay,
   Easing,
 } from 'react-native-reanimated'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Colors } from '@/constants/theme'
 
-const { width, height } = Dimensions.get('window')
+type AmbientVariant = 'ritual' | 'app'
 
-// Ritual session palette: warm, sensual, wine-toned
-const RITUAL_PALETTE = {
-  wine:       '#5C1A2A',
-  deepRose:   '#8B3050',
-  dustyPink:  '#A0586C',
-  peach:      '#C08070',
-  darkBase:   '#1A0A10',
-}
-
-// App-wide palette: darker, more neutral, subtle accent
-const APP_PALETTE = {
-  dark1:      '#1A0E14',
-  dark2:      '#2A1520',
-  muted:      '#4A2535',
-  subtle:     '#3A1A28',
-  darkBase:   '#0C0C0C',
+const PALETTES: Record<AmbientVariant, { base: [string, string, string]; blobs: string[] }> = {
+  ritual: {
+    base: [Colors.gradientStart, '#110E17', Colors.gradientEnd],
+    blobs: ['rgba(161, 61, 103, 0.55)', 'rgba(226, 179, 126, 0.18)', 'rgba(116, 56, 110, 0.42)', 'rgba(240, 106, 166, 0.22)'],
+  },
+  app: {
+    base: ['#17121E', '#0F0C14', Colors.gradientEnd],
+    blobs: ['rgba(105, 72, 124, 0.3)', 'rgba(240, 106, 166, 0.12)', 'rgba(62, 42, 86, 0.42)', 'rgba(226, 179, 126, 0.12)'],
+  },
 }
 
 interface BlobProps {
@@ -107,6 +102,8 @@ function Blob({
         false,
       ),
     )
+    // Reanimated shared values are intentionally initialized once per blob.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const style = useAnimatedStyle(() => ({
@@ -183,42 +180,37 @@ function Blob({
   )
 }
 
-// Warm, sensual background for ritual session screens
-export function AmbientBackground() {
-  const P = RITUAL_PALETTE
+function AmbientLayer({ variant }: { variant: AmbientVariant }) {
+  const { width, height } = useWindowDimensions()
+  const palette = PALETTES[variant]
+
   return (
     <View style={styles.container} pointerEvents="none">
-      <View style={[styles.darkBase, { backgroundColor: P.darkBase }]} />
-      <Blob color={P.wine} size={width * 1.6} startX={-width * 0.5} startY={height * 0.2}
-        endX={-width * 0.2} endY={height * 0.1} duration={25000} opacity={0.8} rotation={45} blurRadius={100} shape={[0.62, 0.38, 0.58, 0.44]} />
-      <Blob color={P.deepRose} size={width * 1.3} startX={width * 0.2} startY={-height * 0.2}
-        endX={-width * 0.1} endY={height * 0.1} duration={22000} delay={3000} opacity={0.7} rotation={-60} blurRadius={90} shape={[0.45, 0.6, 0.4, 0.62]} />
-      <Blob color={P.dustyPink} size={width * 1.1} startX={-width * 0.1} startY={height * 0.3}
-        endX={width * 0.2} endY={height * 0.1} duration={28000} delay={5000} opacity={0.5} rotation={90} blurRadius={95} shape={[0.52, 0.48, 0.66, 0.35]} />
-      <Blob color={P.peach} size={width * 0.9} startX={width * 0.3} startY={height * 0.5}
-        endX={width * 0.1} endY={height * 0.3} duration={30000} delay={8000} opacity={0.4} rotation={120} blurRadius={100} shape={[0.4, 0.58, 0.42, 0.62]} />
-      <Blob color={P.darkBase} size={width * 1.4} startX={width * 0.1} startY={height * 0.4}
-        endX={-width * 0.2} endY={height * 0.2} duration={20000} delay={2000} opacity={0.6} rotation={-30} blurRadius={80} shape={[0.57, 0.36, 0.65, 0.41]} />
+      <LinearGradient
+        colors={palette.base}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[styles.textureVeil, variant === 'ritual' ? styles.textureVeilRitual : styles.textureVeilApp]} />
+      <Blob color={palette.blobs[0]} size={width * 1.5} startX={-width * 0.45} startY={-height * 0.05}
+        endX={-width * 0.15} endY={height * 0.14} duration={22000} opacity={0.9} rotation={34} blurRadius={95} shape={[0.6, 0.42, 0.55, 0.48]} />
+      <Blob color={palette.blobs[1]} size={width * 1.18} startX={width * 0.15} startY={height * 0.34}
+        endX={-width * 0.08} endY={height * 0.14} duration={28000} delay={3200} opacity={0.45} rotation={-56} blurRadius={90} shape={[0.46, 0.58, 0.42, 0.64]} />
+      <Blob color={palette.blobs[2]} size={width * 1.28} startX={width * 0.28} startY={-height * 0.16}
+        endX={width * 0.02} endY={height * 0.06} duration={26000} delay={1800} opacity={0.55} rotation={74} blurRadius={88} shape={[0.52, 0.46, 0.68, 0.36]} />
+      <Blob color={palette.blobs[3]} size={width * 0.92} startX={-width * 0.14} startY={height * 0.58}
+        endX={width * 0.12} endY={height * 0.34} duration={31000} delay={6200} opacity={0.34} rotation={-96} blurRadius={98} shape={[0.44, 0.58, 0.4, 0.67]} />
     </View>
   )
 }
 
-// Darker, subtler background for non-ritual screens (hub, mode selection, setup)
+export function AmbientBackground({ variant = 'ritual' }: { variant?: AmbientVariant }) {
+  return <AmbientLayer variant={variant} />
+}
+
 export function AppBackground() {
-  const P = APP_PALETTE
-  return (
-    <View style={styles.container} pointerEvents="none">
-      <View style={[styles.darkBase, { backgroundColor: P.darkBase }]} />
-      <Blob color={P.dark1} size={width * 1.5} startX={-width * 0.3} startY={-height * 0.1}
-        endX={-width * 0.1} endY={height * 0.1} duration={25000} opacity={0.9} rotation={30} blurRadius={100} shape={[0.62, 0.4, 0.56, 0.42]} />
-      <Blob color={P.muted} size={width * 1.2} startX={width * 0.1} startY={height * 0.3}
-        endX={-width * 0.1} endY={height * 0.15} duration={22000} delay={4000} opacity={0.4} rotation={-50} blurRadius={90} shape={[0.46, 0.6, 0.38, 0.64]} />
-      <Blob color={P.dark2} size={width * 1.3} startX={width * 0.2} startY={-height * 0.15}
-        endX={width * 0.05} endY={height * 0.05} duration={28000} delay={2000} opacity={0.6} rotation={70} blurRadius={95} shape={[0.54, 0.44, 0.67, 0.35]} />
-      <Blob color={P.subtle} size={width * 0.8} startX={-width * 0.1} startY={height * 0.6}
-        endX={width * 0.15} endY={height * 0.4} duration={30000} delay={6000} opacity={0.35} rotation={-90} blurRadius={100} shape={[0.43, 0.58, 0.39, 0.66]} />
-    </View>
-  )
+  return <AmbientLayer variant="app" />
 }
 
 const styles = StyleSheet.create({
@@ -226,8 +218,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
-  darkBase: {
+  textureVeil: {
     ...StyleSheet.absoluteFillObject,
+    opacity: 0.8,
+  },
+  textureVeilRitual: {
+    backgroundColor: 'rgba(14, 10, 18, 0.2)',
+  },
+  textureVeilApp: {
+    backgroundColor: 'rgba(8, 7, 11, 0.26)',
   },
   blob: {
     position: 'absolute',

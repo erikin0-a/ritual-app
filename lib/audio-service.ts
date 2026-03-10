@@ -1,49 +1,39 @@
 /**
  * AudioService — concurrent voice + background music playback for Guided Ritual.
  *
- * Features:
- * - Local file cache in FileSystem.cacheDirectory
- * - Preload music and voice assets before playback
- * - ElevenLabs synthesis from script keys with {NAME1}/{NAME2} substitution
- * - Fallback to remote stream URI when local cache is not ready
+ * Guided voice is driven by cue manifests:
+ * - phrase segments are fetched from storage when available,
+ * - participant names are fetched from the name library,
+ * - development builds can synthesize missing segments directly via ElevenLabs.
  */
-import { Audio, type AVPlaybackSource } from 'expo-av'
+import { Audio, type AVPlaybackSource, type AVPlaybackStatus } from 'expo-av'
 import * as FileSystem from 'expo-file-system'
 import { VOICE_SCRIPT_CATALOG } from '@/constants/voice-script-catalog'
+import { clearGuidedCueManifestCache, resolveGuidedCueManifest } from '@/lib/guided-audio-manifest'
+import { DEFAULT_RITUAL_PARTICIPANTS } from '@/lib/ritual-participants'
+import type { GuidedAudioSegment, GuidedCueManifest, GuidedPreloadItem, ParticipantId, RitualParticipants } from '@/types'
 
 const MUSIC_VOLUME = 0.3
 const VOICE_VOLUME = 1.0
 const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1'
-const CACHE_DIR = `${FileSystem.cacheDirectory ?? ''}guided-audio/`
+const CACHE_DIR = FileSystem.cacheDirectory ? `${FileSystem.cacheDirectory}guided-audio/` : null
 
 const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY
 const ELEVENLABS_VOICE_ID = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID
 const ELEVENLABS_MODEL_ID = process.env.EXPO_PUBLIC_ELEVENLABS_MODEL_ID ?? 'eleven_multilingual_v2'
-const ELEVENLABS_USE_VARIABLES_API = process.env.EXPO_PUBLIC_ELEVENLABS_USE_VARIABLES_API === 'true'
-
-export interface VoiceVariables {
-  NAME1?: string
-  NAME2?: string
-}
 
 export interface VoicePlayOptions {
-  variables?: VoiceVariables
+  participants?: RitualParticipants
   fallbackUri?: string
+  subtitleTemplate?: string
+  highlightedParticipants?: ParticipantId[]
 }
 
-export type PreloadItem = string | {
-  voiceKey: string
-  variables?: VoiceVariables
-  fallbackUri?: string
-}
-
-// In-memory sound cache so we never re-open the same local file/URI in one session.
 const soundCache = new Map<string, Audio.Sound>()
 
-// Active sound references.
 let _voiceSound: Audio.Sound | null = null
 let _musicSound: Audio.Sound | null = null
-
+let _voicePlaybackToken = 0
 let cacheReady = false
 
 function sanitizeFilenamePart(value: string): string {
@@ -66,52 +56,44 @@ function fastHash(input: string): string {
 
 function toBase64(bytes: Uint8Array): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  let out = ''
-  let i = 0
-  while (i < bytes.length) {
-    const b0 = bytes[i++]
-    const b1 = i < bytes.length ? bytes[i++] : undefined
-    const b2 = i < bytes.length ? bytes[i++] : undefined
+  let output = ''
+  let index = 0
 
-    out += alphabet[b0 >> 2]
-    out += alphabet[((b0 & 0b11) << 4) | ((b1 ?? 0) >> 4)]
-    out += b1 === undefined ? '=' : alphabet[((b1 & 0b1111) << 2) | ((b2 ?? 0) >> 6)]
-    out += b2 === undefined ? '=' : alphabet[b2 & 0b111111]
+  while (index < bytes.length) {
+    const b0 = bytes[index++]
+    const b1 = index < bytes.length ? bytes[index++] : undefined
+    const b2 = index < bytes.length ? bytes[index++] : undefined
+
+    output += alphabet[b0 >> 2]
+    output += alphabet[((b0 & 0b11) << 4) | ((b1 ?? 0) >> 4)]
+    output += b1 === undefined ? '=' : alphabet[((b1 & 0b1111) << 2) | ((b2 ?? 0) >> 6)]
+    output += b2 === undefined ? '=' : alphabet[b2 & 0b111111]
   }
 
-  return out
+  return output
 }
 
-async function ensureCacheDir(): Promise<void> {
-  if (cacheReady) return
-  if (!FileSystem.cacheDirectory) {
-    throw new Error('FileSystem.cacheDirectory is not available in this runtime')
+async function ensureCacheDir(): Promise<boolean> {
+  if (cacheReady) return true
+  if (!CACHE_DIR) {
+    return false
   }
+
   const info = await FileSystem.getInfoAsync(CACHE_DIR)
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true })
   }
   cacheReady = true
+  return true
 }
 
-function applyNameVariables(template: string, variables?: VoiceVariables): string {
-  const name1 = variables?.NAME1?.trim() || 'Вы'
-  const name2 = variables?.NAME2?.trim() || 'Партнёр'
-  return template
-    .replaceAll('{NAME1}', name1)
-    .replaceAll('{NAME2}', name2)
-}
-
-function buildVoiceCachePath(voiceKey: string, variables?: VoiceVariables): string {
-  const varsPart = `${variables?.NAME1 ?? ''}-${variables?.NAME2 ?? ''}`
-  const safeKey = sanitizeFilenamePart(voiceKey)
-  const hash = fastHash(`${voiceKey}:${varsPart}`)
-  return `${CACHE_DIR}voice-${safeKey}-${hash}.mp3`
+function buildTextCachePath(text: string, cacheKey?: string): string {
+  const safeKey = sanitizeFilenamePart(cacheKey ?? text)
+  return `${CACHE_DIR ?? ''}segment-${safeKey}-${fastHash(text)}.mp3`
 }
 
 function buildUriCachePath(uri: string): string {
-  const hash = fastHash(uri)
-  return `${CACHE_DIR}remote-${hash}.mp3`
+  return `${CACHE_DIR ?? ''}remote-${fastHash(uri)}.mp3`
 }
 
 async function loadSound(uri: string): Promise<Audio.Sound> {
@@ -132,12 +114,13 @@ async function cacheRemoteUri(uri: string): Promise<string> {
     return uri
   }
 
-  await ensureCacheDir()
+  const canCacheLocally = await ensureCacheDir()
+  if (!canCacheLocally) {
+    return uri
+  }
   const localPath = buildUriCachePath(uri)
   const info = await FileSystem.getInfoAsync(localPath)
-  if (info.exists) {
-    return localPath
-  }
+  if (info.exists) return localPath
 
   try {
     const result = await FileSystem.downloadAsync(uri, localPath)
@@ -147,50 +130,34 @@ async function cacheRemoteUri(uri: string): Promise<string> {
   }
 }
 
-async function synthesizeToCache(voiceKey: string, variables?: VoiceVariables): Promise<string> {
+async function synthesizeTextToCache(text: string, cacheKey?: string): Promise<string> {
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
     throw new Error('ElevenLabs env vars are not configured')
   }
 
-  const template = VOICE_SCRIPT_CATALOG[voiceKey]
-  if (!template) {
-    throw new Error(`Unknown voice key: ${voiceKey}`)
+  const canCacheLocally = await ensureCacheDir()
+  const localPath = canCacheLocally ? buildTextCachePath(text, cacheKey) : null
+  if (localPath) {
+    const info = await FileSystem.getInfoAsync(localPath)
+    if (info.exists) return localPath
   }
 
-  await ensureCacheDir()
-  const localPath = buildVoiceCachePath(voiceKey, variables)
-  const info = await FileSystem.getInfoAsync(localPath)
-  if (info.exists) {
-    return localPath
-  }
-
-  const endpoint = `${ELEVENLABS_BASE_URL}/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`
-  const body: Record<string, unknown> = {
-    text: ELEVENLABS_USE_VARIABLES_API ? template : applyNameVariables(template, variables),
-    model_id: ELEVENLABS_MODEL_ID,
-    output_format: 'mp3_44100_128',
-    voice_settings: {
-      stability: 0.45,
-      similarity_boost: 0.75,
-    },
-  }
-
-  // Optional compatibility path for accounts enabled with template-variable support.
-  if (ELEVENLABS_USE_VARIABLES_API) {
-    body.variables = {
-      NAME1: variables?.NAME1?.trim() || 'Вы',
-      NAME2: variables?.NAME2?.trim() || 'Партнёр',
-    }
-  }
-
-  const response = await fetch(endpoint, {
+  const response = await fetch(`${ELEVENLABS_BASE_URL}/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`, {
     method: 'POST',
     headers: {
       Accept: 'audio/mpeg',
       'Content-Type': 'application/json',
       'xi-api-key': ELEVENLABS_API_KEY,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      text,
+      model_id: ELEVENLABS_MODEL_ID,
+      output_format: 'mp3_44100_128',
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.75,
+      },
+    }),
   })
 
   if (!response.ok) {
@@ -199,37 +166,104 @@ async function synthesizeToCache(voiceKey: string, variables?: VoiceVariables): 
   }
 
   const arrayBuffer = await response.arrayBuffer()
-  const bytes = new Uint8Array(arrayBuffer)
-  const base64 = toBase64(bytes)
+  const audioBase64 = toBase64(new Uint8Array(arrayBuffer))
 
-  await FileSystem.writeAsStringAsync(localPath, base64, {
+  if (!localPath) {
+    return `data:audio/mpeg;base64,${audioBase64}`
+  }
+
+  await FileSystem.writeAsStringAsync(localPath, audioBase64, {
     encoding: FileSystem.EncodingType.Base64,
   })
 
   return localPath
 }
 
-async function resolvePlaybackUri(item: PreloadItem, defaultVariables?: VoiceVariables): Promise<string> {
-  if (typeof item === 'string') {
-    if (VOICE_SCRIPT_CATALOG[item]) {
-      return synthesizeToCache(item, defaultVariables)
+async function resolveSegmentPlaybackUri(segment: GuidedAudioSegment): Promise<string> {
+  if (segment.uri) {
+    try {
+      const cachedUri = await cacheRemoteUri(segment.uri)
+      await loadSound(cachedUri)
+      if (__DEV__) {
+        console.log('[GuidedAudio] Using remote/storage segment', {
+          cacheKey: segment.cacheKey,
+          kind: segment.kind,
+          storagePath: segment.storagePath,
+        })
+      }
+      return cachedUri
+    } catch {
+      // Fall through to synthesis for development-time resilience.
     }
-    return cacheRemoteUri(item)
   }
 
-  const variables = item.variables ?? defaultVariables
-  try {
-    return await synthesizeToCache(item.voiceKey, variables)
-  } catch {
-    if (item.fallbackUri) {
-      return cacheRemoteUri(item.fallbackUri)
-    }
-    throw new Error(`Unable to resolve voice key "${item.voiceKey}" and no fallbackUri provided`)
+  const synthesizedUri = await synthesizeTextToCache(segment.text, segment.cacheKey)
+  await loadSound(synthesizedUri)
+  if (__DEV__) {
+    console.log('[GuidedAudio] Falling back to local ElevenLabs synthesis', {
+      cacheKey: segment.cacheKey,
+      kind: segment.kind,
+      preview: segment.text.slice(0, 80),
+    })
+  }
+  return synthesizedUri
+}
+
+function waitForPlaybackToFinish(sound: Audio.Sound, playbackToken: number): Promise<void> {
+  return new Promise((resolve) => {
+    sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+      if (!status.isLoaded) return
+
+      if (playbackToken !== _voicePlaybackToken) {
+        sound.setOnPlaybackStatusUpdate(null)
+        resolve()
+        return
+      }
+
+      if (status.didJustFinish) {
+        sound.setOnPlaybackStatusUpdate(null)
+        resolve()
+      }
+    })
+  })
+}
+
+async function playSoundUri(uri: string, playbackToken: number): Promise<void> {
+  if (playbackToken !== _voicePlaybackToken) return
+
+  const sound = await loadSound(uri)
+  await sound.setVolumeAsync(VOICE_VOLUME)
+  await sound.setPositionAsync(0)
+  _voiceSound = sound
+  await sound.playAsync()
+  await waitForPlaybackToFinish(sound, playbackToken)
+}
+
+async function playGuidedCueManifest(manifest: GuidedCueManifest): Promise<void> {
+  const playbackToken = ++_voicePlaybackToken
+  for (const segment of manifest.audioSegments) {
+    if (playbackToken !== _voicePlaybackToken) return
+    const segmentUri = await resolveSegmentPlaybackUri(segment)
+    await playSoundUri(segmentUri, playbackToken)
+  }
+  if (playbackToken === _voicePlaybackToken) {
+    _voiceSound = null
   }
 }
 
+async function resolveGuidedManifestForPlayback(
+  cueKey: string,
+  options?: VoicePlayOptions,
+): Promise<GuidedCueManifest> {
+  return resolveGuidedCueManifest(
+    cueKey,
+    options?.participants ?? DEFAULT_RITUAL_PARTICIPANTS,
+    options?.subtitleTemplate,
+    options?.highlightedParticipants,
+  )
+}
+
 export const AudioService = {
-  /** Configure app-wide audio mode once. */
   async configure(): Promise<void> {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
@@ -239,14 +273,10 @@ export const AudioService = {
     })
   },
 
-  /**
-   * Preload a list of music URIs and/or voice keys.
-   * Voice keys are synthesized and cached, remote URIs are downloaded to cache.
-   */
   async preload(
-    items: PreloadItem[],
+    items: GuidedPreloadItem[],
     onProgress?: (progress: number) => void,
-    defaultVariables?: VoiceVariables,
+    participants: RitualParticipants = DEFAULT_RITUAL_PARTICIPANTS,
   ): Promise<void> {
     const total = items.length
     if (total === 0) {
@@ -254,46 +284,47 @@ export const AudioService = {
       return
     }
 
-    for (let i = 0; i < total; i++) {
+    for (let index = 0; index < total; index++) {
       try {
-        const uri = await resolvePlaybackUri(items[i], defaultVariables)
-        await loadSound(uri)
+        const item = items[index]
+        const manifest = await resolveGuidedManifestForPlayback(item.cueKey, {
+          participants,
+        })
+
+        for (const segment of manifest.audioSegments) {
+          try {
+            const segmentUri = await resolveSegmentPlaybackUri(segment)
+            await loadSound(segmentUri)
+          } catch {
+            // Keep progressing; a missing segment should not block ritual start.
+          }
+        }
       } catch {
-        // Keep progressing: preload failures should not block ritual start.
+        // Keep progressing; a missing cue should not block ritual start.
       }
-      onProgress?.((i + 1) / total)
+      onProgress?.((index + 1) / total)
     }
   },
 
-  /**
-   * Play a voice line from either a voice key or direct URI.
-   * Falls back to fallbackUri when synthesis/cache is unavailable.
-   */
-  async playVoice(keyOrUri: string, options?: VoicePlayOptions): Promise<void> {
+  async playVoice(keyOrUri: string, options?: VoicePlayOptions): Promise<GuidedCueManifest | null> {
     await AudioService.stopVoice()
 
-    let playableUri: string
     if (VOICE_SCRIPT_CATALOG[keyOrUri]) {
-      try {
-        playableUri = await synthesizeToCache(keyOrUri, options?.variables)
-      } catch {
-        if (!options?.fallbackUri) {
-          throw new Error(`Voice key "${keyOrUri}" failed and no fallbackUri was provided`)
-        }
-        playableUri = await cacheRemoteUri(options.fallbackUri)
-      }
-    } else {
-      playableUri = await cacheRemoteUri(keyOrUri)
+      const manifest = await resolveGuidedManifestForPlayback(keyOrUri, options)
+      playGuidedCueManifest(manifest).catch(() => null)
+      return manifest
     }
 
+    const playableUri = await cacheRemoteUri(options?.fallbackUri ?? keyOrUri)
     const sound = await loadSound(playableUri)
+    _voicePlaybackToken += 1
+    _voiceSound = sound
     await sound.setVolumeAsync(VOICE_VOLUME)
     await sound.setPositionAsync(0)
     await sound.playAsync()
-    _voiceSound = sound
+    return null
   },
 
-  /** Play looping background music. */
   async playMusic(uri: string): Promise<void> {
     await AudioService.stopMusic()
     const playableUri = await cacheRemoteUri(uri)
@@ -306,7 +337,9 @@ export const AudioService = {
   },
 
   async stopVoice(): Promise<void> {
+    _voicePlaybackToken += 1
     if (_voiceSound) {
+      _voiceSound.setOnPlaybackStatusUpdate(null)
       await _voiceSound.stopAsync().catch(() => null)
       _voiceSound = null
     }
@@ -349,13 +382,13 @@ export const AudioService = {
     await AudioService.resumeAll()
   },
 
-  /** Release all loaded sounds and clear caches for this app session. */
   async releaseAll(): Promise<void> {
     await AudioService.stopAll()
     for (const sound of soundCache.values()) {
       await sound.unloadAsync().catch(() => null)
     }
     soundCache.clear()
+    clearGuidedCueManifestCache()
     _voiceSound = null
     _musicSound = null
   },

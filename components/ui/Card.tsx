@@ -1,16 +1,17 @@
 import { View, StyleSheet, type ViewProps } from 'react-native'
-import { Colors, Spacing, BorderRadius } from '@/constants/theme'
+import { BorderRadius, Colors, SemanticColors, Shadows, Spacing } from '@/constants/theme'
 
-type Variant = 'default' | 'highlighted'
+type Variant = 'default' | 'highlighted' | 'raised' | 'subtle'
 
 interface CardProps extends ViewProps {
   variant?: Variant
+  padded?: boolean
 }
 
-export function Card({ variant = 'default', style, children, ...rest }: CardProps) {
+export function Card({ variant = 'default', padded = true, style, children, ...rest }: CardProps) {
   return (
     <View
-      style={[styles.base, styles[variant], style as object]}
+      style={[styles.base, padded && styles.padded, styles[variant], style as object]}
       {...rest}
     >
       {children}
@@ -21,13 +22,28 @@ export function Card({ variant = 'default', style, children, ...rest }: CardProp
 const styles = StyleSheet.create({
   base: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SemanticColors.hairline,
+    overflow: 'hidden',
   },
-  default: {},
+  padded: {
+    padding: Spacing.lg,
+  },
+  default: {
+    ...Shadows.soft,
+  },
   highlighted: {
     borderColor: Colors.accent,
+    backgroundColor: Colors.surfaceAlt,
+    ...Shadows.glow,
+  },
+  raised: {
+    backgroundColor: Colors.surfaceRaised,
+    borderColor: SemanticColors.hairlineStrong,
+    ...Shadows.soft,
+  },
+  subtle: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
 })

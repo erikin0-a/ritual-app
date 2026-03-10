@@ -89,9 +89,39 @@ npx expo run:ios --device
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 EXPO_PUBLIC_AMPLITUDE_API_KEY=your-amplitude-key
+EXPO_PUBLIC_GUIDED_AUDIO_BUCKET=guided-audio
+EXPO_PUBLIC_GUIDED_AUDIO_PUBLIC_BASE_URL=https://your-project.supabase.co/storage/v1/object/public/guided-audio
+EXPO_PUBLIC_GUIDED_AUDIO_VOICE_PROFILE=marusya-romantic-v1
+EXPO_PUBLIC_GUIDED_AUDIO_FUNCTION_NAME=guided-audio-resolver
+EXPO_PUBLIC_GUIDED_AUDIO_MANIFEST_PREFIX=guided-manifests
+EXPO_PUBLIC_GUIDED_AUDIO_NAME_PREFIX=name-library
+EXPO_PUBLIC_GUIDED_AUDIO_PHRASE_PREFIX=guided-phrases
 ```
 
 > Без Supabase и Amplitude приложение запустится, но аналитика и аутентификация работать не будут. Для тестирования UI это нормально.
+
+#### Guided audio secrets
+
+Guided Ritual теперь рассчитан на `Supabase Storage + Edge Functions`:
+
+- На клиенте нужны только `EXPO_PUBLIC_SUPABASE_*` и `EXPO_PUBLIC_GUIDED_AUDIO_*`.
+- `SUPABASE_SERVICE_ROLE_KEY` нельзя хранить в клиентском `.env` или Expo bundle.
+- На сервере / в `Supabase Edge Functions` нужно задать секреты:
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `ELEVENLABS_API_KEY`
+  - `ELEVENLABS_VOICE_ID`
+  - `ELEVENLABS_MODEL_ID` (опционально, по умолчанию `eleven_multilingual_v2`)
+
+Edge functions в репозитории:
+
+- `supabase/functions/guided-audio-resolver` — проверяет/создаёт missing name clips и возвращает manifest сегментов.
+- `supabase/functions/guided-audio-prime` — прогревает phrase library заранее.
+
+Полезные локальные команды:
+
+- `npm run guided:prime -- 20` — предгенерирует phrase library батчами через `guided-audio-prime`.
+- `npm run guided:qa` — прогонит smoke-test resolver на cue с именами и без них.
 
 ---
 

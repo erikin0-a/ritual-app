@@ -1,12 +1,6 @@
-/**
- * CircularTimer — countdown display with pause/resume
- *
- * Visual: large time text centered in a thin-bordered circle.
- * Progress: opacity-based dimming of the ring as time runs down.
- * TODO: upgrade to SVG arc progress when react-native-svg is added.
- */
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { Colors, BorderRadius, Typography } from '@/constants/theme'
+import Svg, { Circle } from 'react-native-svg'
+import { BorderRadius, Colors, SemanticColors, Shadows, Spacing, Typography } from '@/constants/theme'
 
 interface CircularTimerProps {
   totalSeconds: number
@@ -24,20 +18,45 @@ function formatTime(seconds: number): string {
 
 export function CircularTimer({ totalSeconds, remainingSeconds, isPaused, onPauseToggle, onSkip }: CircularTimerProps) {
   const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0
-  // Ring opacity: full when time is plentiful, dimmer near the end
-  const ringOpacity = 0.3 + progress * 0.7
+  const size = 232
+  const strokeWidth = 10
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference * (1 - progress)
 
   return (
     <View style={styles.container}>
-      {/* Outer ring */}
-      <View style={[styles.ring, { opacity: ringOpacity }]}>
-        {/* Timer text */}
-        <Text style={styles.timeText}>{formatTime(remainingSeconds)}</Text>
-        {/* Paused indicator */}
+      <View style={styles.timerShell}>
+        <Svg width={size} height={size} style={styles.svg}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={SemanticColors.timerTrack}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={SemanticColors.timerFill}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={strokeDashoffset}
+            rotation={-90}
+            origin={`${size / 2}, ${size / 2}`}
+          />
+        </Svg>
+        <View style={styles.innerContent}>
+          <Text style={styles.timeText}>{formatTime(remainingSeconds)}</Text>
+          <Text style={styles.metaLabel}>До смены фазы</Text>
+        </View>
         {isPaused && <Text style={styles.pausedLabel}>пауза</Text>}
       </View>
 
-      {/* Controls */}
       <View style={styles.controls}>
         <Pressable style={styles.controlButton} onPress={onPauseToggle}>
           <Text style={styles.controlLabel}>{isPaused ? 'Продолжить' : 'Пауза'}</Text>
@@ -55,52 +74,74 @@ export function CircularTimer({ totalSeconds, remainingSeconds, isPaused, onPaus
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    gap: 32,
+    gap: Spacing.lg,
   },
-  ring: {
-    width: 220,
-    height: 220,
-    borderRadius: BorderRadius.full,
-    borderWidth: 2,
-    borderColor: Colors.accent,
+  timerShell: {
+    width: 252,
+    height: 252,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(17, 13, 22, 0.7)',
+    borderWidth: 1,
+    borderColor: SemanticColors.hairline,
+    ...Shadows.soft,
+  },
+  svg: {
+    position: 'absolute',
+  },
+  innerContent: {
+    width: 176,
+    height: 176,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   timeText: {
-    fontSize: 56,
-    fontWeight: '200' as const,
+    fontSize: 54,
+    fontWeight: '300' as const,
     color: Colors.text,
     fontVariant: ['tabular-nums'],
-    letterSpacing: 2,
+    letterSpacing: 1.2,
+  },
+  metaLabel: {
+    ...Typography.caption,
+    color: Colors.textMuted,
   },
   pausedLabel: {
+    position: 'absolute',
+    bottom: 22,
     ...Typography.caption,
     color: Colors.accent,
-    marginTop: 4,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
   controls: {
-    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 12,
   },
   controlButton: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SemanticColors.hairlineStrong,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   controlLabel: {
-    ...Typography.body,
-    color: Colors.textSecondary,
+    ...Typography.caption,
+    color: Colors.text,
   },
   skipButton: {
-    borderColor: 'transparent',
+    borderColor: SemanticColors.hairline,
   },
   skipLabel: {
     color: Colors.textSecondary,
-    opacity: 0.5,
-    fontSize: 13,
   },
 })
