@@ -18,7 +18,6 @@ import { BorderRadius, Colors, Fonts, SemanticColors, Shadows, Spacing, Typograp
 import { FINAL_MESSAGE, ROUND_CONTENT } from '@/constants/ritual-content'
 import {
   GUIDED_CONSENT_SUCCESS_CUE,
-  GUIDED_PRELUDE_CUES,
   GUIDED_ROUND_SCENES,
   GUIDED_TRANSITION_CUES,
 } from '@/constants/guided-session'
@@ -27,6 +26,7 @@ import { Card } from '@/components/ui/Card'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
 import { RitualCompletionSurface } from '@/components/ritual/RitualCompletionSurface'
 import { RitualConsentGate } from '@/components/ritual/RitualConsentGate'
+import { RitualIntro } from '@/components/ritual/RitualIntro'
 import { RitualParticipantChips } from '@/components/ritual/RitualParticipantChips'
 import { RitualSetupOverlay } from '@/components/ritual/RitualSetupOverlay'
 import { RitualTransitionOverlay } from '@/components/ritual/RitualTransitionOverlay'
@@ -170,16 +170,21 @@ export default function RitualSessionScreen() {
   const playCue = useAudioStore((s) => s.playCue)
   const clearSubtitle = useAudioStore((s) => s.clearSubtitle)
 
-  const [phase, setPhase] = useState<SessionPhase>(resolvedMode === 'guided' ? 'prelude' : 'loading')
+  const [phase, setPhase] = useState<SessionPhase>('loading')
   const [warmupReady, setWarmupReady] = useState(resolvedMode !== 'guided')
+  const [consentCompleted, setConsentCompleted] = useState(false)
   const [branchByRound, setBranchByRound] = useState<Partial<Record<RoundId, GuidedBranch>>>({})
   const [transitionFrom, setTransitionFrom] = useState<number | 'intro'>('intro')
+  const [voiceStartTime, setVoiceStartTime] = useState<number | null>(null)
 
   const didStartSessionRef = useRef(false)
   const previousRoundRef = useRef<RoundId | null>(null)
   const appStatePauseRef = useRef(false)
   const preludeTimersRef = useRef<ReturnType<typeof globalThis.setTimeout>[]>([])
   const transitionTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const preludeStartTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const preludeMusicRef = useRef<Audio.Sound | null>(null)
+  const preludeVoiceRef = useRef<Audio.Sound | null>(null)
   const signalRef = useRef<Audio.Sound | null>(null)
   const isPausedRef = useRef(isPaused)
 
@@ -197,6 +202,17 @@ export default function RitualSessionScreen() {
       globalThis.clearTimeout(transitionTimerRef.current)
       transitionTimerRef.current = null
     }
+  }, [])
+
+  const cleanupPreludeAudio = useCallback(() => {
+    if (preludeStartTimerRef.current) {
+      globalThis.clearTimeout(preludeStartTimerRef.current)
+      preludeStartTimerRef.current = null
+    }
+    preludeMusicRef.current?.unloadAsync().catch(() => null)
+    preludeMusicRef.current = null
+    preludeVoiceRef.current?.unloadAsync().catch(() => null)
+    preludeVoiceRef.current = null
   }, [])
 
   const playSignal = useCallback(async () => {
@@ -228,6 +244,7 @@ export default function RitualSessionScreen() {
   const handleRestart = useCallback(() => {
     cleanupPreludeTimers()
     cleanupTransitionTimer()
+    cleanupPreludeAudio()
     resetRitual()
     stopAudio().catch(() => null)
     clearSubtitle()
@@ -235,12 +252,10 @@ export default function RitualSessionScreen() {
     previousRoundRef.current = null
     didStartSessionRef.current = false
     setTransitionFrom('intro')
-    if (resolvedMode === 'guided') {
-      setPhase('prelude')
-    } else {
-      setPhase('loading')
-    }
-  }, [cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, resolvedMode, stopAudio])
+    setVoiceStartTime(null)
+    setConsentCompleted(false)
+    setPhase('loading')
+  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, resolvedMode, stopAudio])
 
   useEffect(() => {
     let mounted = true
@@ -265,10 +280,11 @@ export default function RitualSessionScreen() {
       signalRef.current?.unloadAsync().catch(() => null)
       cleanupPreludeTimers()
       cleanupTransitionTimer()
+      cleanupPreludeAudio()
       stopAudio().catch(() => null)
       resetRitual()
     }
-  }, [cleanupPreludeTimers, cleanupTransitionTimer, resetRitual, stopAudio])
+  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, resetRitual, stopAudio])
 
   useEffect(() => {
     if (resolvedMode !== 'guided') return
@@ -300,31 +316,71 @@ export default function RitualSessionScreen() {
   }, [configureAudio, preloadAllGuided, preloadRound, resolvedMode, ritualParticipants, setVoiceParticipants])
 
   useEffect(() => {
+    if (resolvedMode !== 'guided') return
+    if (phase !== 'loading' || !warmupReady) return
+    setPhase('prelude')
+  }, [phase, resolvedMode, warmupReady])
+
+  useEffect(() => {
     if (resolvedMode !== 'guided' || phase !== 'prelude') return
 
     cleanupPreludeTimers()
-    let accumulatedDelay = 0
+    setVoiceStartTime(null)
+    cleanupPreludeAudio()
+    let cancelled = false
 
-    GUIDED_PRELUDE_CUES.forEach((cue, index) => {
-      const timer = globalThis.setTimeout(() => {
-        playCue({
-          voiceKey: cue.voiceKey,
-          subtitle: cue.subtitle,
-          highlightedParticipants: cue.highlightedParticipants,
-        }).catch(() => null)
+    const startPreludeAudio = async () => {
+      try {
+        const { sound: music } = await Audio.Sound.createAsync(
+          require('@/assets/audio/ritual_music.mp3'),
+          { isLooping: true, volume: 0 },
+        )
 
-        if (index === GUIDED_PRELUDE_CUES.length - 1) {
-          const nextTimer = globalThis.setTimeout(() => setPhase('consent'), cue.delayMs)
-          preludeTimersRef.current.push(nextTimer)
+        if (cancelled) {
+          await music.unloadAsync().catch(() => null)
+          return
         }
-      }, accumulatedDelay)
+        preludeMusicRef.current = music
+        await music.playAsync()
 
-      preludeTimersRef.current.push(timer)
-      accumulatedDelay += cue.delayMs
-    })
+        for (let volume = 0; volume <= 0.4; volume += 0.02) {
+          if (cancelled) return
+          await globalThis.Promise.resolve()
+          await new Promise((resolve) => globalThis.setTimeout(resolve, 120))
+          await music.setVolumeAsync(volume).catch(() => null)
+        }
 
-    return () => cleanupPreludeTimers()
-  }, [cleanupPreludeTimers, phase, playCue, resolvedMode])
+        preludeStartTimerRef.current = globalThis.setTimeout(async () => {
+          if (cancelled) return
+          try {
+            const { sound: intro } = await Audio.Sound.createAsync(
+              require('@/assets/audio/ritual_intro.mp3'),
+              { volume: 1.0 },
+            )
+            if (cancelled) {
+              await intro.unloadAsync().catch(() => null)
+              return
+            }
+            preludeVoiceRef.current = intro
+            await intro.playAsync()
+            setVoiceStartTime(Date.now())
+          } catch {
+            // keep visual intro even if voice asset fails
+          }
+        }, 1000)
+      } catch {
+        // keep visual intro even if music asset fails
+      }
+    }
+
+    startPreludeAudio().catch(() => null)
+
+    return () => {
+      cancelled = true
+      cleanupPreludeAudio()
+      cleanupPreludeTimers()
+    }
+  }, [cleanupPreludeAudio, cleanupPreludeTimers, phase, resolvedMode])
 
   useEffect(() => {
     if (resolvedMode !== 'free' || phase !== 'loading') return
@@ -434,7 +490,12 @@ export default function RitualSessionScreen() {
   }, [pauseToggle, phase, status])
 
   const handleConsentComplete = useCallback(() => {
-    if (!warmupReady) return
+    setConsentCompleted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!consentCompleted || !warmupReady) return
+    cleanupPreludeAudio()
 
     playCue({
       voiceKey: GUIDED_CONSENT_SUCCESS_CUE.voiceKey,
@@ -447,10 +508,11 @@ export default function RitualSessionScreen() {
     }
 
     const timer = globalThis.setTimeout(() => {
+      setConsentCompleted(false)
       startSessionRuntime()
     }, GUIDED_CONSENT_SUCCESS_CUE.delayMs)
     preludeTimersRef.current.push(timer)
-  }, [playCue, startSessionRuntime, warmupReady])
+  }, [cleanupPreludeAudio, consentCompleted, playCue, startSessionRuntime, warmupReady])
 
   const handleSetupConfirm = useCallback(
     (branch: GuidedBranch) => {
@@ -482,8 +544,15 @@ export default function RitualSessionScreen() {
   if (phase === 'prelude') {
     return (
       <View style={styles.darkScreen}>
+        <RitualIntro onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
+      </View>
+    )
+  }
+
+  if (phase === 'loading' && resolvedMode === 'guided') {
+    return (
+      <View style={styles.darkScreen}>
         <DimmingOrb pct={preloadBlend} />
-        <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />
       </View>
     )
   }

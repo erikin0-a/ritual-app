@@ -101,10 +101,15 @@ async function loadSound(uri: string): Promise<Audio.Sound> {
     return soundCache.get(uri)!
   }
 
-  const { sound } = await Audio.Sound.createAsync(
+  const { sound, status } = await Audio.Sound.createAsync(
     { uri } as AVPlaybackSource,
     { shouldPlay: false },
   )
+  if (!status.isLoaded) {
+    const loadError = 'error' in status ? status.error : 'unknown_audio_load_error'
+    await sound.unloadAsync().catch(() => null)
+    throw new Error(`Audio load failed for ${uri}: ${loadError}`)
+  }
   soundCache.set(uri, sound)
   return sound
 }
@@ -327,12 +332,27 @@ export const AudioService = {
 
   async playMusic(uri: string): Promise<void> {
     await AudioService.stopMusic()
-    const playableUri = await cacheRemoteUri(uri)
-    const sound = await loadSound(playableUri)
-    await sound.setVolumeAsync(MUSIC_VOLUME)
-    await sound.setIsLoopingAsync(true)
-    await sound.setPositionAsync(0)
-    await sound.playAsync()
+    try {
+      const playableUri = await cacheRemoteUri(uri)
+      const sound = await loadSound(playableUri)
+      await sound.setVolumeAsync(MUSIC_VOLUME)
+      await sound.setIsLoopingAsync(true)
+      await sound.setPositionAsync(0)
+      await sound.playAsync()
+      _musicSound = sound
+      return
+    } catch {
+      // Fall back to bundled ambient track when remote music is unavailable.
+    }
+
+    const { sound } = await Audio.Sound.createAsync(
+      require('../assets/audio/ritual_music.mp3'),
+      {
+        shouldPlay: true,
+        isLooping: true,
+        volume: MUSIC_VOLUME,
+      },
+    )
     _musicSound = sound
   },
 
