@@ -30,14 +30,37 @@ Set these in `.env` (do not commit real values):
   in `app/paywall.tsx`.
 - Premium gating by entitlement status in `stores/subscription.store.ts` and `app/(main)/ritual/index.tsx`.
 
-## Sandbox/dev verification checklist
+## Как тестировать премиум в тестовом запуске
 
-1. Start app in a development build (not Expo Go).
-2. Open Premium from Ritual mode selector.
-3. Buy annual plan in Sandbox test account.
-4. Confirm user is routed to Premium consent flow and premium mode is unlocked.
-5. Reinstall app / log out sandbox account and run `Restore purchases`.
-6. Confirm premium entitlement is restored and gating remains unlocked.
+### Вариант A: Sandbox Apple ID (покупки и «Восстановить покупки»)
+
+**Нужна платная программа Apple Developer** ($99/год) — Sandbox-тестеры и подписки в App Store Connect доступны только с ней.
+
+1. **Создать Sandbox-тестера**  
+   [App Store Connect](https://appstoreconnect.apple.com) → Users and Access → Sandbox → Testers → добавить тестовый Apple ID (отдельный email, не ваш основной Apple ID).
+
+2. **Войти Sandbox на устройстве**  
+   На iPhone/iPad: **Настройки → App Store → внизу «Sandbox Account»** — войти под тестовым аккаунтом.  
+   (В iOS 15+ раздел может называться «Медиа и покупки» или находиться в настройках приложения App Store.)
+
+3. **Сборка и запуск**  
+   Запускать приложение в **development build** (не Expo Go), на симуляторе или устройстве.
+
+4. **Проверка покупки**  
+   В приложении открыть Premium (Ritual → Guided) → оформить подписку. Оплата идёт через Sandbox (деньги не списываются). Подписка в Sandbox может быть укорочена (например, 5 минут вместо месяца).
+
+5. **Проверка «Восстановить покупки»**  
+   Ошибка «Не удалось восстановить покупки. Проверьте Apple ID Sandbox» обычно значит:
+   - в App Store на устройстве **не выполнен вход** под Sandbox-аккаунтом (см. п. 2), или  
+   - у этого Sandbox-аккаунта **ещё не было покупки** в этом приложении — сначала сделайте тестовую покупку (п. 4), затем «Восстановить покупки».  
+   После успешной тестовой покупки восстановление должно проходить без ошибки.
+
+### Вариант B: Локальный тест без Sandbox (только UI/флоу)
+
+Если нужно просто проверить экраны и флоу премиума без реальных покупок:
+
+- В **dev-сборке** (например `npx expo run:ios`), если в `.env` **не заданы** ключи RevenueCat (`EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` пустой или закомментирован), приложение по умолчанию считает пользователя премиум (дефолт из store). Никаких доп. переменных не нужно.
+- В production-сборке при отсутствии ключа статус будет `free`.
 
 ## Security note
 

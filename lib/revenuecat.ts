@@ -84,7 +84,10 @@ export async function initRevenueCat(): Promise<boolean> {
 
   const apiKey = getApiKey()
   if (!apiKey) {
-    useSubscriptionStore.getState().setStatus('free')
+    // В dev без ключа RevenueCat оставляем дефолт store (premium) — можно тестировать премиум без Sandbox.
+    if (!__DEV__) {
+      useSubscriptionStore.getState().setStatus('free')
+    }
     return false
   }
 
