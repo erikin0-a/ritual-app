@@ -88,20 +88,17 @@ function PartnerCard({
   placeholder: string
   index: number
 }) {
-  const [focused, setFocused] = useState(false)
   const borderOpacity = useSharedValue(0)
 
-  const borderStyle = useAnimatedStyle(() => ({
+  const focusBorderStyle = useAnimatedStyle(() => ({
     borderColor: `rgba(194, 71, 109, ${borderOpacity.value})`,
   }))
 
   function handleFocus() {
-    setFocused(true)
     borderOpacity.value = withTiming(0.7, { duration: 220 })
   }
 
   function handleBlur() {
-    setFocused(false)
     borderOpacity.value = withTiming(0, { duration: 300 })
   }
 
@@ -110,7 +107,13 @@ function PartnerCard({
       entering={FadeInDown.delay(index * 120).duration(600).springify()}
       style={styles.partnerCard}
     >
-      <Animated.View style={[styles.cardInner, borderStyle]}>
+      {/* Plain View — no Animated wrapper around TextInput to prevent iOS touch interception */}
+      <View style={styles.cardInner}>
+        {/* Animated focus border overlay — pointerEvents none so it never intercepts touches */}
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, styles.focusBorderOverlay, focusBorderStyle]}
+        />
         <Text style={styles.cardLabel}>{label}</Text>
         <TextInput
           style={styles.nameInput}
@@ -130,7 +133,7 @@ function PartnerCard({
           <GenderPill label="Он" selected={gender === 'm'} onPress={() => onGenderChange('m')} />
           <GenderPill label="Она" selected={gender === 'f'} onPress={() => onGenderChange('f')} />
         </View>
-      </Animated.View>
+      </View>
     </Animated.View>
   )
 }
@@ -471,6 +474,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
     padding: 20,
     gap: 12,
+    overflow: 'hidden',
+  },
+  focusBorderOverlay: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   cardLabel: {
     fontSize: 9,

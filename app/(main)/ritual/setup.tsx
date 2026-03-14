@@ -13,7 +13,14 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { ArrowRight } from 'lucide-react-native'
-import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, interpolate } from 'react-native-reanimated'
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from 'react-native-reanimated'
 import { Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { createRitualParticipants } from '@/lib/ritual-participants'
@@ -34,9 +41,7 @@ function GenderSelector({
           МУЖЧИНА
         </Text>
       </Pressable>
-      
       <View style={styles.genderDot} />
-
       <Pressable onPress={() => onChange('f')} style={styles.genderBtn}>
         <Text style={[styles.genderText, value === 'f' ? styles.genderTextActive : styles.genderTextInactive]}>
           ЖЕНЩИНА
@@ -65,20 +70,32 @@ function PartnerPane({
         <Text style={styles.numericLabel}>{number}</Text>
         <Text style={styles.labelText}>УЧАСТНИК</Text>
       </View>
-
       <TextInput
         style={styles.nameInput}
         placeholder="Имя"
         placeholderTextColor="rgba(255,255,255,0.15)"
         value={name}
         onChangeText={onNameChange}
-        selectionColor="#f5f2ed" // Cream color
+        selectionColor="#f5f2ed"
         autoCorrect={false}
       />
       <View style={styles.inputUnderline} />
-
       <GenderSelector value={gender} onChange={onGenderChange} />
     </View>
+  )
+}
+
+// ─── Ready Screen (names already in store) ────────────────────────────────────
+function ReadyPane({ p1Name, p2Name }: { p1Name: string; p2Name: string }) {
+  return (
+    <Animated.View entering={FadeInDown.duration(700).delay(100)} style={styles.readyContainer}>
+      <View style={styles.readyPair}>
+        <Text style={styles.readyName}>{p1Name}</Text>
+        <Text style={styles.readyAmpersand}>&</Text>
+        <Text style={styles.readyName}>{p2Name}</Text>
+      </View>
+      <Text style={styles.readyHint}>Ваши имена сохранены из предыдущего сеанса</Text>
+    </Animated.View>
   )
 }
 
@@ -86,50 +103,65 @@ export default function RitualSetupScreen() {
   const router = useRouter()
   const { mode } = useLocalSearchParams<{ mode: RitualMode }>()
 
+  const storedParticipants = useAuthStore((s) => s.ritualParticipants)
   const setRitualParticipants = useAuthStore((s) => s.setRitualParticipants)
 
-  const [partner1Name, setPartner1Name] = useState('')
-  const [partner2Name, setPartner2Name] = useState('')
-  const [partner1Gender, setPartner1Gender] = useState<ParticipantGender>('m')
-  const [partner2Gender, setPartner2Gender] = useState<ParticipantGender>('f')
+  const hasStoredNames =
+    storedParticipants.p1.name.trim().length >= 2 &&
+    storedParticipants.p2.name.trim().length >= 2
+
+  // Fallback state for when names are missing
+  const [partner1Name, setPartner1Name] = useState(storedParticipants.p1.name)
+  const [partner2Name, setPartner2Name] = useState(storedParticipants.p2.name)
+  const [partner1Gender, setPartner1Gender] = useState<ParticipantGender>(storedParticipants.p1.gender)
+  const [partner2Gender, setPartner2Gender] = useState<ParticipantGender>(storedParticipants.p2.gender)
 
   const handleStart = () => {
-    setRitualParticipants(
-      createRitualParticipants({
-        p1: { id: 'p1', name: partner1Name, gender: partner1Gender },
-        p2: { id: 'p2', name: partner2Name, gender: partner2Gender },
-      }),
-    )
+    if (!hasStoredNames) {
+      // Save fallback-entered names to store
+      setRitualParticipants(
+        createRitualParticipants({
+          p1: { id: 'p1', name: partner1Name.trim(), gender: partner1Gender },
+          p2: { id: 'p2', name: partner2Name.trim(), gender: partner2Gender },
+        }),
+      )
+    }
     router.push({ pathname: '/(main)/ritual/session', params: { mode } })
   }
 
-  const isValid = partner1Name.trim().length > 0 && partner2Name.trim().length > 0
+  const isValid = hasStoredNames
+    ? true
+    : partner1Name.trim().length > 0 && partner2Name.trim().length > 0
 
   const btnPressed = useSharedValue(0)
   const btnStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(btnPressed.value, [0, 1], [1, 0.98]) }]
+    transform: [{ scale: interpolate(btnPressed.value, [0, 1], [1, 0.98]) }],
   }))
 
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.screen}>
-        <LiquidBackground />
-        
-        <SafeAreaView style={styles.safe}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.flex}
-          >
-            {/* Header */}
-            <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
-              <Pressable style={styles.backBtn} onPress={() => router.back()}>
-                <ArrowRight size={16} color="rgba(255,255,255,0.7)" style={{ transform: [{ rotate: '180deg' }] }} />
-              </Pressable>
-              <Text style={styles.topLabel}>ПОДГОТОВКА</Text>
-              <View style={styles.backSpacer} />
-            </Animated.View>
+  const content = (
+    <View style={styles.screen}>
+      <LiquidBackground />
 
-            <View style={styles.content}>
+      <SafeAreaView style={styles.safe}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          {/* Header */}
+          <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
+            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+              <ArrowRight size={16} color="rgba(255,255,255,0.7)" style={{ transform: [{ rotate: '180deg' }] }} />
+            </Pressable>
+            <Text style={styles.topLabel}>ПОДГОТОВКА</Text>
+            <View style={styles.backSpacer} />
+          </Animated.View>
+
+          <View style={styles.content}>
+            {hasStoredNames ? (
+              <View style={styles.panesWrapper}>
+                <ReadyPane p1Name={storedParticipants.p1.name} p2Name={storedParticipants.p2.name} />
+              </View>
+            ) : (
               <Animated.View entering={FadeInDown.duration(800).delay(100)} style={styles.panesWrapper}>
                 <PartnerPane
                   number="01"
@@ -138,9 +170,7 @@ export default function RitualSetupScreen() {
                   onNameChange={setPartner1Name}
                   onGenderChange={setPartner1Gender}
                 />
-                
                 <View style={styles.paneSpacer} />
-
                 <PartnerPane
                   number="02"
                   name={partner2Name}
@@ -149,32 +179,39 @@ export default function RitualSetupScreen() {
                   onGenderChange={setPartner2Gender}
                 />
               </Animated.View>
+            )}
 
-              {/* Action Button */}
-              <Animated.View 
-                entering={FadeIn.duration(600).delay(300)}
-                style={styles.footer}
+            {/* Action Button */}
+            <Animated.View entering={FadeIn.duration(600).delay(300)} style={styles.footer}>
+              <Pressable
+                style={styles.fabPressableArea}
+                onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
+                onPressOut={() => { btnPressed.value = withTiming(0, { duration: 300 }) }}
+                onPress={handleStart}
+                disabled={!isValid}
               >
-                <Pressable
-                  style={styles.fabPressableArea}
-                  onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
-                  onPressOut={() => { btnPressed.value = withTiming(0, { duration: 300 }) }}
-                  onPress={handleStart}
-                  disabled={!isValid}
-                >
-                  <Animated.View style={[styles.fab, !isValid && styles.fabDisabled, btnStyle]}>
-                    <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
-                      НАЧАТЬ ПОГРУЖЕНИЕ
-                    </Text>
-                  </Animated.View>
-                </Pressable>
-              </Animated.View>
-            </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
-    </TouchableWithoutFeedback>
+                <Animated.View style={[styles.fab, !isValid && styles.fabDisabled, btnStyle]}>
+                  <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
+                    НАЧАТЬ ПОГРУЖЕНИЕ
+                  </Text>
+                </Animated.View>
+              </Pressable>
+            </Animated.View>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   )
+
+  // Dismiss keyboard on tap when fallback input shown
+  if (!hasStoredNames) {
+    return (
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        {content}
+      </TouchableWithoutFeedback>
+    )
+  }
+  return content
 }
 
 const styles = StyleSheet.create({
@@ -226,6 +263,8 @@ const styles = StyleSheet.create({
   paneSpacer: {
     height: 60,
   },
+
+  // ─── Fallback name input ──────────────────────────────────────────────────
   paneContainer: {
     alignItems: 'center',
   },
@@ -289,6 +328,39 @@ const styles = StyleSheet.create({
   genderTextInactive: {
     color: 'rgba(255,255,255,0.3)',
   },
+
+  // ─── Ready pane (names from store) ───────────────────────────────────────
+  readyContainer: {
+    alignItems: 'center',
+    gap: 20,
+  },
+  readyPair: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  readyName: {
+    fontFamily: Fonts.display,
+    fontSize: 48,
+    color: '#fff',
+    fontWeight: '300',
+    letterSpacing: -0.5,
+  },
+  readyAmpersand: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: 'rgba(194,24,91,0.7)',
+    fontStyle: 'italic',
+    marginVertical: 4,
+  },
+  readyHint: {
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: 'rgba(255,255,255,0.2)',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+
+  // ─── Footer button ────────────────────────────────────────────────────────
   footer: {
     width: '100%',
     paddingTop: 24,
