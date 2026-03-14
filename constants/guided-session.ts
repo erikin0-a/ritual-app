@@ -29,14 +29,14 @@ export const GUIDED_PRELUDE_CUES: GuidedStandaloneCue[] = [
   {
     id: 'prelude_intro_rules',
     voiceKey: 'prelude_intro_rules',
-    subtitle: 'Добро пожаловать в Ритуал. Здесь правила не запрещают, а создают напряжение.',
-    delayMs: 17_000,
+    subtitle: 'Добро пожаловать в Ритуал. Правила здесь не запрещают — они создают напряжение и помогают удержать желание.',
+    delayMs: 37_000,
   },
   {
     id: 'prelude_consent_wait',
     voiceKey: 'prelude_consent_wait',
-    subtitle: 'Если вы оба согласны, приложите пальцы к экрану одновременно и удерживайте.',
-    delayMs: 12_000,
+    subtitle: 'Если вы оба согласны — приложите пальцы к экрану одновременно и удерживайте.',
+    delayMs: 18_000,
     highlightedParticipants: ['p1', 'p2'],
   },
 ]
