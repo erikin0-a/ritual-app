@@ -544,7 +544,7 @@ export default function RitualSessionScreen() {
   if (phase === 'prelude') {
     return (
       <View style={styles.darkScreen}>
-        <RitualIntro onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
+        <RitualIntro participants={ritualParticipants} onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
       </View>
     )
   }
