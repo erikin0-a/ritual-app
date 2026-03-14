@@ -13,80 +13,92 @@ import { BlurView } from 'expo-blur'
 
 const { width, height } = Dimensions.get('window')
 
-/**
- * Noise Overlay Component
- * Creates an SVG noise pattern to simulate film grain.
- */
-const NoiseOverlay = () => {
-  return (
-    <View style={[StyleSheet.absoluteFill, { opacity: 0.15, zIndex: 10 }]} pointerEvents="none">
-      <View style={styles.noiseContainer} />
-    </View>
-  )
+interface LiquidBackgroundProps {
+  /**
+   * 0–1. Controls ambient blob intensity.
+   * 0 = barely visible (round 1), 1 = fully vivid (round 5).
+   * Defaults to 0.4 (neutral).
+   */
+  intensity?: number
 }
 
 /**
  * LiquidBackground
- * A strict, minimalist background. 
- * Pure deep dark canvas with an ultra-subtle dusty rose breathing highlight.
+ * Animated dark canvas with a breathing warm-rose blob.
+ * The `intensity` prop scales the blob opacity — use it to signal
+ * escalating tension across ritual rounds.
  */
-export const LiquidBackground = () => {
-  // Single subtle breathing animation
+export const LiquidBackground = ({ intensity = 0.4 }: LiquidBackgroundProps) => {
   const pulseScale = useSharedValue(1)
-  const pulseOpacity = useSharedValue(0.3)
+  const pulseOpacity = useSharedValue(intensity * 0.6)
 
+  // Slow breathing scale (same for all intensities)
   useEffect(() => {
     pulseScale.value = withRepeat(
       withSequence(
-        withTiming(1.2, { duration: 15000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 15000, easing: Easing.inOut(Easing.sin) })
+        withTiming(1.25, { duration: 14000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 14000, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
-      true
+      true,
     )
-
-    pulseOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.5, { duration: 12000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.2, { duration: 12000, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      true
-    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const pulseStyle = useAnimatedStyle(() => ({
+  // Opacity breathing scales proportionally with intensity
+  useEffect(() => {
+    const lo = Math.max(0.08, intensity * 0.3)
+    const hi = Math.max(0.2, intensity * 0.72)
+    pulseOpacity.value = withRepeat(
+      withSequence(
+        withTiming(hi, { duration: 11000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(lo, { duration: 11000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      true,
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intensity])
+
+  const blobStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
   }))
 
+  // Second smaller blob offset for richer depth at higher intensities
+  const secondBlobOpacity = intensity > 0.5 ? intensity * 0.25 : 0
+  const secondBlobStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + (1 - pulseScale.value) * 0.4 }],
+    opacity: secondBlobOpacity * pulseOpacity.value,
+  }))
+
   return (
-    <View style={styles.container}>
-      {/* Base Canvas */}
-      <View style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={['#080808', '#000000']}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+    <View style={styles.container} pointerEvents="none">
+      {/* Base canvas */}
+      <LinearGradient
+        colors={['#0D0A0F', '#080608', '#000000']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
 
-      {/* Subtle Dusty Rose Pulse */}
-      <Animated.View style={[styles.dustyRosePulse, pulseStyle]} />
+      {/* Primary warm-rose blob */}
+      <Animated.View style={[styles.primaryBlob, blobStyle]} />
 
-      {/* Global Blur Filter */}
-      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+      {/* Secondary accent blob (visible at intensity > 0.5) */}
+      {intensity > 0.5 && (
+        <Animated.View style={[styles.secondaryBlob, secondBlobStyle]} />
+      )}
 
-      {/* Vintage Noise Texture */}
-      <NoiseOverlay />
-      
-      {/* Subtle Vignette */}
-      <View style={styles.vignette} pointerEvents="none">
-        <LinearGradient
-          colors={['rgba(0,0,0,0.8)', 'transparent', 'transparent', 'rgba(0,0,0,0.9)']}
-          locations={[0, 0.2, 0.8, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      {/* Blur to soften blobs */}
+      <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+
+      {/* Vignette edges */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.75)', 'transparent', 'transparent', 'rgba(0,0,0,0.85)']}
+        locations={[0, 0.18, 0.82, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
     </View>
   )
 }
@@ -94,28 +106,26 @@ export const LiquidBackground = () => {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: '#0D0A0F',
     overflow: 'hidden',
   },
-  dustyRosePulse: {
+  primaryBlob: {
     position: 'absolute',
-    top: height * 0.1,
-    left: width * 0.1,
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: width * 0.4,
-    backgroundColor: 'rgba(164, 115, 126, 0.15)', // Dusty Rose
-    filter: [{ blur: 60 }], // Fallback for web, native is handled by BlurView
+    top: height * 0.08,
+    left: width * 0.05,
+    width: width * 0.9,
+    height: width * 0.9,
+    borderRadius: width * 0.45,
+    // Warm deep-rose, matches accent palette
+    backgroundColor: 'rgba(139, 26, 74, 0.5)',
   },
-  noiseContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    // We use a CSS trick for noise on web, on native we might need a tiled image or SVG if strictly requested.
-    // For now, React Native web handles this well, and native can use this as a placeholder for a true noise asset.
-    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-  },
-  vignette: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 5,
+  secondaryBlob: {
+    position: 'absolute',
+    bottom: height * 0.1,
+    right: width * 0.05,
+    width: width * 0.55,
+    height: width * 0.55,
+    borderRadius: width * 0.275,
+    backgroundColor: 'rgba(194, 24, 91, 0.4)',
   },
 })

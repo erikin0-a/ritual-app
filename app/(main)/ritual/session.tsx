@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppState, ScrollView, StyleSheet, Text, View, type AppStateStatus } from 'react-native'
+import { AppState, StyleSheet, Text, View, type AppStateStatus } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Audio } from 'expo-av'
 import * as Haptics from 'expo-haptics'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -14,8 +15,8 @@ import Animated, {
   FadeOut,
 } from 'react-native-reanimated'
 import { Svg, Defs, RadialGradient, Stop, Circle } from 'react-native-svg'
-import { BorderRadius, Colors, Fonts, SemanticColors, Shadows, Spacing, Typography } from '@/constants/theme'
-import { FINAL_MESSAGE, ROUND_CONTENT } from '@/constants/ritual-content'
+import { BorderRadius, Colors, Fonts, SemanticColors, Spacing, Typography } from '@/constants/theme'
+import { FINAL_MESSAGE } from '@/constants/ritual-content'
 import {
   GUIDED_CONSENT_SUCCESS_CUE,
   GUIDED_ROUND_SCENES,
@@ -23,6 +24,7 @@ import {
 } from '@/constants/guided-session'
 import { ScreenContainer } from '@/components/common/ScreenContainer'
 import { Card } from '@/components/ui/Card'
+import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
 import { RitualCompletionSurface } from '@/components/ritual/RitualCompletionSurface'
 import { RitualConsentGate } from '@/components/ritual/RitualConsentGate'
@@ -130,6 +132,7 @@ function RoundProgressDots({
 
 export default function RitualSessionScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { mode } = useLocalSearchParams<{ mode: RitualMode }>()
   const resolvedMode: RitualMode = mode ?? 'free'
 
@@ -150,7 +153,6 @@ export default function RitualSessionScreen() {
   const durationPreference = useAuthStore((s) => s.durationPreference)
   const ritualParticipants = useAuthStore((s) => s.ritualParticipants)
   const round = rounds.find((item) => item.id === currentRound)
-  const roundContent = currentRound ? ROUND_CONTENT.find((item) => item.roundId === currentRound) : null
   const roundScene = currentRound ? GUIDED_ROUND_SCENES[currentRound] : null
 
   const currentCue = useAudioStore((s) => s.currentCue)
@@ -530,6 +532,8 @@ export default function RitualSessionScreen() {
   const activeBranch = currentRound ? branchByRound[currentRound] : undefined
   const activeLeaderName =
     activeBranch === 'a' ? ritualParticipants.p1.name : activeBranch === 'b' ? ritualParticipants.p2.name : null
+  // Background intensity grows with each round: 0.18 (R1) → 1.0 (R5)
+  const roundIntensity = currentRound ? 0.18 + ((currentRound - 1) / 4) * 0.82 : 0.4
 
   const headerContent = (
     <View style={styles.header}>
@@ -641,24 +645,34 @@ export default function RitualSessionScreen() {
     )
   }
 
+  // ─── Round Playback — clean, timer-focused, no scroll ───────────────────────
   return (
-    <ScreenContainer background="ritual" safe={false} style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-        {headerContent}
+    <View style={styles.screen}>
+      <LiquidBackground intensity={roundIntensity} />
 
-        <Card variant="raised" style={styles.roundHero}>
+      {/* Safe content area */}
+      <View style={[styles.safeContent, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
+
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
+          <View style={styles.headerMeta}>
+            <Text style={styles.headerMode}>
+              {resolvedMode === 'guided' ? 'Привилегия' : 'Свободный режим'}
+            </Text>
+            <View style={styles.headerDot} />
+            <Text style={styles.headerRoundText}>Раунд {currentRound} из 5</Text>
+          </View>
+        </View>
+
+        {/* ── Round name ── */}
+        <View style={styles.roundNameArea}>
           <Text style={styles.roundEyebrow}>{roundScene.title}</Text>
           <Text style={styles.roundTitle}>{roundScene.titleShort}</Text>
-          <Text style={styles.roundBody}>{roundContent?.extendedDescription ?? round.description}</Text>
-          <Text style={styles.roundMood}>{roundContent?.moodSetter ?? roundScene.atmosphere}</Text>
-        </Card>
+        </View>
 
-        <Card variant="subtle" style={styles.chromeCard}>
-          <RitualParticipantChips participants={ritualParticipants} highlighted={highlightedParticipants} />
-          {activeLeaderName ? <Text style={styles.activeLeader}>Сейчас ведёт: {activeLeaderName}</Text> : null}
-        </Card>
-
-        <View style={styles.timerWrap}>
+        {/* ── Timer (main focus) ── */}
+        <View style={styles.timerArea}>
           <CircularTimer
             totalSeconds={round.duration}
             remainingSeconds={roundTimeRemaining}
@@ -668,11 +682,21 @@ export default function RitualSessionScreen() {
           />
         </View>
 
-        <Card variant="raised" style={styles.rulesCard}>
-          <Text style={styles.rulesTitle}>{roundScene.ruleHeadline}</Text>
-          <Text style={styles.rulesBody}>{roundScene.ruleFootnote}</Text>
-          <View style={styles.ruleGroup}>
-            <Text style={styles.ruleGroupLabel}>Разрешено</Text>
+        {/* ── Participant chips + leader badge ── */}
+        <View style={styles.chipsArea}>
+          <RitualParticipantChips participants={ritualParticipants} highlighted={highlightedParticipants} />
+          {activeLeaderName ? (
+            <Text style={styles.activeLeader}>
+              Сейчас ведёт:{' '}
+              <Text style={styles.activeLeaderName}>{activeLeaderName}</Text>
+            </Text>
+          ) : null}
+        </View>
+
+        {/* ── Compact rules bar ── */}
+        <View style={styles.rulesBar}>
+          <View style={styles.ruleSection}>
+            <Text style={styles.ruleSectionLabel}>МОЖНО</Text>
             <View style={styles.pillRow}>
               {round.allowed.map((item) => (
                 <View key={item} style={[styles.pill, styles.allowedPill]}>
@@ -681,8 +705,9 @@ export default function RitualSessionScreen() {
               ))}
             </View>
           </View>
-          <View style={styles.ruleGroup}>
-            <Text style={styles.ruleGroupLabel}>Запрещено</Text>
+          <View style={styles.ruleDivider} />
+          <View style={styles.ruleSection}>
+            <Text style={styles.ruleSectionLabel}>НЕЛЬЗЯ</Text>
             <View style={styles.pillRow}>
               {round.forbidden.map((item) => (
                 <View key={item} style={[styles.pill, styles.forbiddenPill]}>
@@ -691,30 +716,23 @@ export default function RitualSessionScreen() {
               ))}
             </View>
           </View>
-        </Card>
-
-        <Card variant="subtle" style={styles.noteCard}>
-          <Text style={styles.noteTitle}>Ритм раунда</Text>
-          <Text style={styles.noteBody}>{roundScene.timerHint}</Text>
-          <Text style={styles.noteBody}>{roundScene.atmosphere}</Text>
-        </Card>
-      </ScrollView>
+        </View>
+      </View>
 
       {resolvedMode === 'guided' && <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />}
-    </ScreenContainer>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#0D0A0F',
   },
   screenPad: {
+    flex: 1,
     paddingTop: Spacing.xxxl,
     paddingHorizontal: Spacing.xl,
-    paddingBottom: 160,
-    gap: Spacing.lg,
   },
   fullscreenCenter: {
     flex: 1,
@@ -755,66 +773,58 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textSecondary,
   },
-  heroCard: {
-    width: '100%',
-    maxWidth: 640,
-    gap: Spacing.md,
-    ...Shadows.glow,
-  },
-  eyebrow: {
-    ...Typography.label,
-    color: Colors.accent,
-    textAlign: 'center',
-  },
-  heroTitle: {
-    ...Typography.display,
-    fontSize: 34,
-    textAlign: 'center',
-  },
-  heroBody: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  preloadTrack: {
-    height: 8,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    overflow: 'hidden',
-  },
-  preloadFill: {
-    height: '100%',
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.accent,
-  },
-  preloadMeta: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
   loadingText: {
     ...Typography.body,
     color: Colors.textSecondary,
   },
-  roundHero: {
-    gap: Spacing.sm,
+  // ─── Round Playback ────────────────────────────────────────────────────────
+  safeContent: {
+    flex: 1,
+    paddingHorizontal: Spacing.xl,
+    justifyContent: 'space-between',
   },
-  roundEyebrow: {
-    ...Typography.label,
+  headerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  headerMode: {
+    ...Typography.caption,
     color: Colors.accent,
   },
-  roundTitle: {
-    ...Typography.h1,
+  headerDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  roundBody: {
-    ...Typography.body,
+  headerRoundText: {
+    ...Typography.caption,
     color: Colors.textSecondary,
   },
-  roundMood: {
-    ...Typography.caption,
-    color: Colors.secondary,
+  roundNameArea: {
+    alignItems: 'center',
+    gap: 4,
   },
-  chromeCard: {
+  roundEyebrow: {
+    fontSize: 9,
+    letterSpacing: 3,
+    color: Colors.accent,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  roundTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 28,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  timerArea: {
+    alignItems: 'center',
+  },
+  chipsArea: {
+    alignItems: 'center',
     gap: Spacing.sm,
   },
   activeLeader: {
@@ -822,64 +832,59 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
-  timerWrap: {
-    alignItems: 'center',
+  activeLeaderName: {
+    color: Colors.text,
+    fontWeight: '600',
   },
-  rulesCard: {
-    gap: Spacing.md,
-  },
-  rulesTitle: {
-    ...Typography.h3,
-  },
-  rulesBody: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
-  ruleGroup: {
+  rulesBar: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: Spacing.md,
     gap: Spacing.sm,
   },
-  ruleGroupLabel: {
-    ...Typography.caption,
-    color: Colors.textMuted,
+  ruleSection: {
+    gap: 8,
+  },
+  ruleSectionLabel: {
+    fontSize: 8,
+    letterSpacing: 2.5,
+    color: 'rgba(255,255,255,0.25)',
+    fontWeight: '600',
+  },
+  ruleDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: 6,
   },
   pill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
   allowedPill: {
-    backgroundColor: 'rgba(141, 216, 176, 0.14)',
-    borderColor: 'rgba(141, 216, 176, 0.22)',
+    backgroundColor: 'rgba(141, 216, 176, 0.10)',
+    borderColor: 'rgba(141, 216, 176, 0.18)',
   },
   forbiddenPill: {
-    backgroundColor: SemanticColors.surfaceAccent,
-    borderColor: 'rgba(240, 106, 166, 0.22)',
+    backgroundColor: 'rgba(194,24,91,0.09)',
+    borderColor: 'rgba(194,24,91,0.18)',
   },
   pillText: {
-    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: '400',
   },
   allowedText: {
     color: Colors.success,
   },
   forbiddenText: {
     color: Colors.accent,
-  },
-  noteCard: {
-    gap: Spacing.sm,
-    marginBottom: 24,
-  },
-  noteTitle: {
-    ...Typography.bodyStrong,
-  },
-  noteBody: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
   },
   transitionFlash: {
     ...StyleSheet.absoluteFillObject,
