@@ -596,6 +596,13 @@ export default function RitualSessionScreen() {
   if (phase === 'transition') {
     return (
       <ScreenContainer background="ritual" safe={false} style={styles.screen}>
+        {/* Screen pulse flash on round change */}
+        <Animated.View
+          entering={FadeIn.duration(120)}
+          exiting={FadeOut.duration(800)}
+          style={styles.transitionFlash}
+          pointerEvents="none"
+        />
         <View style={styles.screenPad}>
           {headerContent}
           <View style={styles.fullscreenCenter}>
@@ -873,6 +880,12 @@ const styles = StyleSheet.create({
   noteBody: {
     ...Typography.caption,
     color: Colors.textSecondary,
+  },
+  transitionFlash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.accent,
+    opacity: 0.07,
+    zIndex: 1,
   },
   darkScreen: {
     flex: 1,
