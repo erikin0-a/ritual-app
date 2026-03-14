@@ -94,7 +94,7 @@ function DimmingOrb({ pct }: { pct: number }) {
       </Animated.View>
 
       <Animated.View entering={FadeIn.duration(1200).delay(600)} style={dimmingStyles.textBlock}>
-        <Text style={dimmingStyles.statusText}>DIMMING THE LIGHTS...</Text>
+        <Text style={dimmingStyles.statusText}>НАСТРАИВАЕМ АТМОСФЕРУ...</Text>
         {pct < 100 && (
           <View style={dimmingStyles.progressTrack}>
             <View style={[dimmingStyles.progressFill, { width: `${Math.max(pct, 6)}%` }]} />
@@ -535,7 +535,7 @@ export default function RitualSessionScreen() {
     <View style={styles.header}>
       <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
       <Text style={styles.headerLabel}>
-        {resolvedMode === 'guided' ? 'Guided Ritual' : 'Свободный режим'}
+        {resolvedMode === 'guided' ? 'Привилегия' : 'Свободный режим'}
       </Text>
       {currentRound ? <Text style={styles.headerRound}>Раунд {currentRound} из 5</Text> : null}
     </View>
@@ -587,7 +587,7 @@ export default function RitualSessionScreen() {
     return (
       <ScreenContainer background="ritual" safe={false}>
         <View style={styles.fullscreenCenter}>
-          <Text style={styles.loadingText}>Подготавливаем session...</Text>
+          <Text style={styles.loadingText}>Подготавливаем ритуал...</Text>
         </View>
       </ScreenContainer>
     )
