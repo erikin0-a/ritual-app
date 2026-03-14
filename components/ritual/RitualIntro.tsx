@@ -1,269 +1,26 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, Pressable, Dimensions, Platform } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Platform, StyleSheet, Text, View } from 'react-native'
 import { Audio } from 'expo-av'
-import * as Haptics from 'expo-haptics'
-import Svg, { Circle as SvgCircle } from 'react-native-svg'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedProps,
   withTiming,
   withRepeat,
   withSequence,
-  withDelay,
   Easing,
-  interpolate,
   runOnJS,
 } from 'react-native-reanimated'
-import { Colors } from '@/constants/theme'
 import {
   CHIME_SEC,
   CONSENT_APPEAR_SEC,
   RITUAL_INTRO_TIMELINE,
   type RitualIntroTimelineItem,
 } from '@/constants/ritual-intro-timeline'
+import { RitualConsentGate } from '@/components/ritual/RitualConsentGate'
+import type { RitualParticipants } from '@/types'
 
-const { height } = Dimensions.get('window')
 const INTRO_FONT_FAMILY = Platform.select({ ios: 'System', default: undefined })
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const VOICEOVER_DURATION_SEC = 83 // Total duration of voiceover
-const CONT = 140          // total animated container size
-const RING_R = 66         // SVG arc radius (diameter 132)
-const CIRC = 2 * Math.PI * RING_R
-const INNER = 108         // pressable inner circle diameter
-const HOLD_MS = 1800      // hold duration in ms
-
-const hapticImpact = () => {
-  if (Platform.OS === 'web') return
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-}
-const hapticSuccess = () => {
-  if (Platform.OS === 'web') return
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-}
-
-const AnimatedSvgCircle = Animated.createAnimatedComponent(SvgCircle)
-
-// ─── Consent Circle ───────────────────────────────────────────────────────────
-interface ConsentCircleProps {
-  position: 'top' | 'bottom'
-  onConfirm: () => void
-  visible: boolean
-  mergeProgress: Animated.SharedValue<number>
-}
-
-function ConsentCircle({ position, onConfirm, visible, mergeProgress }: ConsentCircleProps) {
-  const [confirmed, setConfirmed] = useState(false)
-  const confirmedRef = useRef(false)
-  const isHoldingRef = useRef(false)
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Animation values
-  const containerOpacity = useSharedValue(0)
-  const containerScale = useSharedValue(0.5)
-  const idlePulse = useSharedValue(1)
-  const holdProgress = useSharedValue(0)
-  const glowOpacity = useSharedValue(0)
-  const innerScale = useSharedValue(1)
-  
-  // Appear animation
-  useEffect(() => {
-    if (!visible) return
-    containerOpacity.value = withTiming(1, { duration: 1400, easing: Easing.out(Easing.ease) })
-    containerScale.value = withTiming(1, { duration: 1300, easing: Easing.out(Easing.back(1.1)) })
-    
-    // Start idle pulse
-    idlePulse.value = withDelay(
-      1400,
-      withRepeat(
-        withSequence(
-          withTiming(1.04, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-          withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        false,
-      ),
-    )
-  }, [visible])
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
-    }
-  }, [])
-
-  const doConfirm = useCallback(() => {
-    confirmedRef.current = true
-    setConfirmed(true)
-    
-    // Success animation
-    idlePulse.value = withTiming(1, { duration: 200 })
-    holdProgress.value = 1
-    glowOpacity.value = withSequence(
-      withTiming(0.8, { duration: 150 }),
-      withTiming(0, { duration: 800, easing: Easing.out(Easing.quad) }),
-    )
-    innerScale.value = withSequence(
-      withTiming(0.9, { duration: 100 }),
-      withTiming(1.15, { duration: 300, easing: Easing.out(Easing.back(1.5)) }),
-      withTiming(1, { duration: 300 }),
-    )
-    
-    hapticSuccess()
-    onConfirm()
-  }, [onConfirm])
-
-  const handlePressIn = useCallback(() => {
-    if (confirmedRef.current) return
-    isHoldingRef.current = true
-    hapticImpact()
-
-    // Pause idle pulse
-    idlePulse.value = withTiming(1, { duration: 200 })
-    
-    // Press feedback
-    innerScale.value = withTiming(0.95, { duration: 200 })
-    holdProgress.value = withTiming(1, { duration: HOLD_MS, easing: Easing.linear })
-    glowOpacity.value = withTiming(0.5, { duration: 300 })
-
-    holdTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current && !confirmedRef.current) doConfirm()
-    }, HOLD_MS)
-  }, [doConfirm])
-
-  const handlePressOut = useCallback(() => {
-    if (confirmedRef.current) return
-    isHoldingRef.current = false
-    if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
-
-    // Reset animations
-    holdProgress.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) })
-    glowOpacity.value = withTiming(0, { duration: 300 })
-    innerScale.value = withTiming(1, { duration: 300 })
-
-    // Resume idle pulse
-    idlePulse.value = withRepeat(
-      withSequence(
-        withTiming(1.04, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    )
-  }, [])
-
-  const progressArcProps = useAnimatedProps(() => ({
-    strokeDashoffset: CIRC * (1 - holdProgress.value),
-  }))
-
-  // Merge animation logic
-  const containerStyle = useAnimatedStyle(() => {
-    // Initial positions
-    const initialTop = height * 0.15
-    const initialBottom = height * 0.15
-    const center = height / 2 - CONT / 2
-
-    // Interpolate position based on mergeProgress
-    let translateY = 0
-    if (position === 'top') {
-       // Move down to center
-       translateY = interpolate(mergeProgress.value, [0, 1], [0, center - initialTop])
-    } else {
-       // Move up to center (negative translateY since bottom is fixed)
-       // Wait, if bottom is fixed, increasing translateY moves it down.
-       // We want to move it UP. So negative translateY.
-       // Distance to travel: center - (height - initialBottom - CONT) ??
-       // Easier: use top/bottom style directly if possible, or translateY relative to start.
-       // Let's use absolute positioning with top/bottom and translateY.
-       
-       // Center Y coordinate is height/2.
-       // Initial Bottom Y center is height - initialBottom - CONT/2.
-       // Target Y center is height/2.
-       // Delta = Target - Initial = height/2 - (height - initialBottom - CONT/2)
-       //       = initialBottom + CONT/2 - height/2
-       // But translateY adds to Y position (moves down).
-       // So to move UP, we need negative value.
-       // translateY = interpolate(mergeProgress.value, [0, 1], [0, -(initialBottom + CONT/2 - height/2 + CONT)]) 
-       // Let's simplify:
-       // Start Y (top edge) = height - initialBottom - CONT
-       // End Y (top edge) = height/2 - CONT/2
-       // Delta = End - Start
-       translateY = interpolate(mergeProgress.value, [0, 1], [0, (height/2 - CONT/2) - (height - initialBottom - CONT)])
-    }
-
-    return {
-      opacity: containerOpacity.value,
-      transform: [
-        { translateY },
-        { scale: containerScale.value * (confirmed ? 1 : idlePulse.value) }
-      ],
-    }
-  })
-
-  const labelStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(mergeProgress.value, [0, 0.5], [1, 0]),
-  }))
-
-  const positionStyle = position === 'top'
-    ? { top: height * 0.15 }
-    : { bottom: height * 0.15 }
-
-  const label = position === 'top' ? 'Партнёр 1' : 'Партнёр 2'
-
-  return (
-    <Animated.View style={[styles.outerWrapper, positionStyle, containerStyle]}>
-      {/* Glow Bloom */}
-      <Animated.View style={[styles.glowBloom, { opacity: glowOpacity }]} />
-
-      {/* SVG Ring */}
-      <Svg width={CONT} height={CONT} style={StyleSheet.absoluteFill} viewBox={`0 0 ${CONT} ${CONT}`}>
-        {/* Track */}
-        <SvgCircle
-          cx={CONT / 2}
-          cy={CONT / 2}
-          r={RING_R}
-          fill="none"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth={1.5}
-        />
-        {/* Progress */}
-        <AnimatedSvgCircle
-          cx={CONT / 2}
-          cy={CONT / 2}
-          r={RING_R}
-          fill="none"
-          stroke={confirmed ? '#f5f2ed' : 'rgba(255, 255, 255, 0.9)'}
-          strokeWidth={2.5}
-          strokeDasharray={String(CIRC)}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${CONT / 2} ${CONT / 2})`}
-          animatedProps={progressArcProps}
-        />
-      </Svg>
-
-      {/* Button */}
-      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
-        <Animated.View style={[
-          styles.innerCircle,
-          confirmed && styles.innerCircleConfirmed,
-          { transform: [{ scale: innerScale }] }
-        ]}>
-          <Text style={[styles.innerIcon, confirmed && styles.innerIconConfirmed]}>
-            {confirmed ? '✓' : '·'}
-          </Text>
-          <Text style={[styles.innerHint, confirmed && styles.innerHintConfirmed]}>
-            {confirmed ? 'Готово' : 'Удержать'}
-          </Text>
-        </Animated.View>
-      </Pressable>
-
-      {/* Label */}
-      <Animated.Text style={[styles.partnerLabel, labelStyle]}>{label}</Animated.Text>
-    </Animated.View>
-  )
-}
+const VOICEOVER_DURATION_SEC = 83
 
 // ─── Intro Text ───────────────────────────────────────────────────────────────
 function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null }) {
@@ -311,6 +68,7 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
       scaleBase.value = withTiming(1.016, { duration: 750 })
     }
     return () => { if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeItem])
 
   const animStyle = useAnimatedStyle(() => ({
@@ -335,28 +93,28 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 interface RitualIntroProps {
+  participants: RitualParticipants
   onConsentComplete: () => void
   voiceStartTime: number | null
 }
 
-export function RitualIntro({ onConsentComplete, voiceStartTime }: RitualIntroProps) {
+export function RitualIntro({ participants, onConsentComplete, voiceStartTime }: RitualIntroProps) {
   const [voiceSecond, setVoiceSecond] = useState(0)
-  const [topConfirmed, setTopConfirmed] = useState(false)
-  const [bottomConfirmed, setBottomConfirmed] = useState(false)
   const [showCircles, setShowCircles] = useState(false)
-  
+
+  const voiceSecondRef = useRef(0)
   const screenOpacity = useSharedValue(0)
-  const mergeProgress = useSharedValue(0)
-  
+  const completeTriggeredRef = useRef(false)
   const chimePlayedRef = useRef(false)
   const chimeSoundRef = useRef<Audio.Sound | null>(null)
-  const completeTriggeredRef = useRef(false)
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     screenOpacity.value = withTiming(1, { duration: 2000, easing: Easing.out(Easing.ease) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Audio setup
+  // Audio chime setup
   useEffect(() => {
     let isMounted = true
     const loadChime = async () => {
@@ -367,23 +125,35 @@ export function RitualIntro({ onConsentComplete, voiceStartTime }: RitualIntroPr
         )
         if (!isMounted) { await sound.unloadAsync(); return }
         chimeSoundRef.current = sound
-      } catch (e) { console.log('chime error', e) }
+      } catch { /* no-op */ }
     }
     loadChime()
-    return () => { isMounted = false; chimeSoundRef.current?.unloadAsync() }
+    return () => {
+      isMounted = false
+      chimeSoundRef.current?.unloadAsync()
+      if (waitTimerRef.current) clearTimeout(waitTimerRef.current)
+    }
   }, [])
 
-  // Timer loop
+  // Voice second timer
   useEffect(() => {
     if (!voiceStartTime) return
-    const update = () => setVoiceSecond(Math.max(0, (Date.now() - voiceStartTime) / 1000))
+    const update = () => {
+      const s = Math.max(0, (Date.now() - voiceStartTime) / 1000)
+      voiceSecondRef.current = s
+      setVoiceSecond(s)
+    }
     update()
     const timer = setInterval(update, 250)
     return () => clearInterval(timer)
   }, [voiceStartTime])
 
-  // Triggers
-  useEffect(() => { if (voiceSecond >= CONSENT_APPEAR_SEC) setShowCircles(true) }, [voiceSecond])
+  // Show consent circles trigger
+  useEffect(() => {
+    if (voiceSecond >= CONSENT_APPEAR_SEC) setShowCircles(true)
+  }, [voiceSecond])
+
+  // Play chime at the right time
   useEffect(() => {
     if (!chimePlayedRef.current && voiceSecond >= CHIME_SEC) {
       chimePlayedRef.current = true
@@ -391,125 +161,45 @@ export function RitualIntro({ onConsentComplete, voiceStartTime }: RitualIntroPr
     }
   }, [voiceSecond])
 
-  // Completion Logic
-  useEffect(() => {
+  // Called when RitualConsentGate fires onComplete (both held for 1.5s simultaneously)
+  const handleConsentDone = useCallback(() => {
     if (completeTriggeredRef.current) return
-    if (topConfirmed && bottomConfirmed) {
-      
-      const finishIntro = () => {
-        completeTriggeredRef.current = true
-        // 1. Animate merge
-        mergeProgress.value = withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.cubic) }, (finished) => {
-          if (finished) {
-            // 2. Wait a moment then complete
-            runOnJS(onConsentComplete)()
-          }
-        })
-      }
 
-      // Check if voiceover is done
-      if (voiceSecond >= VOICEOVER_DURATION_SEC) {
-        finishIntro()
-      } else {
-        // Wait for voiceover
-        const remainingMs = (VOICEOVER_DURATION_SEC - voiceSecond) * 1000
-        const t = setTimeout(finishIntro, Math.max(0, remainingMs))
-        return () => clearTimeout(t)
-      }
+    const finishIntro = () => {
+      completeTriggeredRef.current = true
+      screenOpacity.value = withTiming(0, { duration: 700, easing: Easing.in(Easing.ease) }, (done) => {
+        if (done) runOnJS(onConsentComplete)()
+      })
     }
-  }, [topConfirmed, bottomConfirmed, voiceSecond, onConsentComplete])
+
+    const currentSecond = voiceSecondRef.current
+    if (currentSecond >= VOICEOVER_DURATION_SEC) {
+      finishIntro()
+    } else {
+      const remainingMs = (VOICEOVER_DURATION_SEC - currentSecond) * 1000
+      waitTimerRef.current = setTimeout(finishIntro, Math.max(0, remainingMs))
+    }
+  }, [onConsentComplete, screenOpacity])
 
   const activeItem = useMemo(() => {
-    if (!voiceStartTime) return null
+    if (!voiceStartTime || showCircles) return null
     return RITUAL_INTRO_TIMELINE.find(i => voiceSecond >= i.startSec && voiceSecond < i.endSec) ?? null
-  }, [voiceSecond, voiceStartTime])
+  }, [voiceSecond, voiceStartTime, showCircles])
 
   const fadeStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }))
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, fadeStyle]}>
-      <IntroText activeItem={activeItem} />
-      <ConsentCircle
-        position="top"
-        visible={showCircles}
-        onConfirm={() => setTopConfirmed(true)}
-        mergeProgress={mergeProgress}
-      />
-      <ConsentCircle
-        position="bottom"
-        visible={showCircles}
-        onConfirm={() => setBottomConfirmed(true)}
-        mergeProgress={mergeProgress}
-      />
+      {!showCircles && <IntroText activeItem={activeItem} />}
+      {showCircles && (
+        <RitualConsentGate participants={participants} onComplete={handleConsentDone} />
+      )}
     </Animated.View>
   )
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  outerWrapper: {
-    position: 'absolute',
-    alignSelf: 'center',
-    width: CONT,
-    height: CONT,
-    alignItems: 'center',
-    justifyContent: 'center', // Fixes centering
-    zIndex: 20,
-  },
-  glowBloom: {
-    position: 'absolute',
-    width: CONT * 1.8,
-    height: CONT * 1.8,
-    borderRadius: CONT,
-    backgroundColor: 'rgba(164, 115, 126, 0.15)',
-    ...(Platform.OS === 'web' ? { filter: 'blur(32px)' } : {}),
-  },
-  innerCircle: {
-    width: INNER,
-    height: INNER,
-    borderRadius: INNER / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  innerCircleConfirmed: {
-    backgroundColor: 'rgba(245, 242, 237, 0.12)',
-    borderColor: 'rgba(245, 242, 237, 0.5)',
-  },
-  innerIcon: {
-    fontSize: 22,
-    color: 'rgba(255, 255, 255, 0.4)',
-    marginBottom: 2,
-  },
-  innerIconConfirmed: {
-    fontSize: 26,
-    color: '#f5f2ed',
-    marginBottom: 0,
-  },
-  innerHint: {
-    fontFamily: INTRO_FONT_FAMILY,
-    fontWeight: '600',
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.3)',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  innerHintConfirmed: {
-    color: 'rgba(245, 242, 237, 0.8)',
-  },
-  partnerLabel: {
-    position: 'absolute',
-    bottom: -32, // Push outside the circle
-    fontFamily: INTRO_FONT_FAMILY,
-    fontWeight: '500',
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.25)',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
   textContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',

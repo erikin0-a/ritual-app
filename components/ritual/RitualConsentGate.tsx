@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
@@ -9,275 +9,352 @@ import Animated, {
   withSequence,
   Easing,
   FadeIn,
+  interpolate,
 } from 'react-native-reanimated'
-import { Svg, Circle } from 'react-native-svg'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Colors, Fonts, Spacing, Typography } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 import type { RitualParticipants } from '@/types'
 
-interface RitualConsentGateProps {
+const { height: SCREEN_H } = Dimensions.get('window')
+
+const HOLD_MS = 1500
+const TICK_MS = 50
+const TRACK_H = Math.min(180, SCREEN_H * 0.22)
+const PANEL_H = Math.min(320, SCREEN_H * 0.40)
+
+export interface RitualConsentGateProps {
   participants: RitualParticipants
   onComplete: () => void
 }
 
-const HOLD_MS = 1500
-const CIRCLE_SIZE = 130
-
-function FingerprintIcon({ size = 42, opacity = 0.5 }: { size?: number; opacity?: number }) {
-  const c = size / 2
-  const r1 = size * 0.1
-  const r2 = size * 0.2
-  const r3 = size * 0.32
-  const r4 = size * 0.44
-  return (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Circle cx={c} cy={c} r={r1} fill={Colors.text} opacity={opacity} />
-      <Circle cx={c} cy={c} r={r2} fill="none" stroke={Colors.text} strokeWidth={1.4} opacity={opacity} />
-      <Circle cx={c} cy={c} r={r3} fill="none" stroke={Colors.text} strokeWidth={1.4} opacity={opacity} />
-      <Circle cx={c} cy={c} r={r4} fill="none" stroke={Colors.text} strokeWidth={1.4} opacity={opacity} />
-    </Svg>
-  )
-}
-
-function HoldCircle({
+// ─── Hold Panel ───────────────────────────────────────────────────────────────
+function HoldPanel({
   name,
-  isConfirmed,
+  side,
+  isActive,
   onPressIn,
   onPressOut,
-  flipped,
 }: {
   name: string
-  isConfirmed: boolean
+  side: 'left' | 'right'
+  isActive: boolean
   onPressIn: () => void
   onPressOut: () => void
-  flipped?: boolean
 }) {
-  const ringScale = useSharedValue(1)
-  const ringOpacity = useSharedValue(0)
-  const pressScale = useSharedValue(1)
+  const glowOpacity = useSharedValue(0)
+  const panelScale = useSharedValue(1)
+  const dotScale = useSharedValue(1)
 
   useEffect(() => {
-    if (isConfirmed) {
-      ringOpacity.value = withRepeat(
+    if (isActive) {
+      glowOpacity.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.4, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, { duration: 650, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.3, { duration: 650, easing: Easing.inOut(Easing.sin) }),
         ),
         -1,
         false,
       )
-      ringScale.value = withTiming(1.08, { duration: 500 })
+      panelScale.value = withTiming(0.97, { duration: 180 })
+      dotScale.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        false,
+      )
     } else {
-      ringOpacity.value = withTiming(0, { duration: 300 })
-      ringScale.value = withTiming(1, { duration: 300 })
+      glowOpacity.value = withTiming(0, { duration: 300 })
+      panelScale.value = withTiming(1, { duration: 250 })
+      dotScale.value = withTiming(1, { duration: 250 })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConfirmed])
+  }, [isActive])
 
-  const handlePressIn = () => {
-    if (isConfirmed) return
-    ringOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: 500, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.2, { duration: 500, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    )
-    pressScale.value = withTiming(0.94, { duration: 200 })
-    onPressIn()
-  }
-
-  const handlePressOut = () => {
-    if (isConfirmed) return
-    ringOpacity.value = withTiming(0, { duration: 250 })
-    pressScale.value = withTiming(1, { duration: 200 })
-    onPressOut()
-  }
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: ringOpacity.value,
-    transform: [{ scale: ringScale.value }],
-  }))
-
-  const pressStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pressScale.value }],
-  }))
-
-  const label = (
-    <Text style={[styles.holdLabel, isConfirmed && styles.holdLabelReady]}>
-      {isConfirmed ? 'READY' : name.toUpperCase()}
-    </Text>
-  )
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glowOpacity.value }))
+  const panelStyle = useAnimatedStyle(() => ({ transform: [{ scale: panelScale.value }] }))
+  const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: dotScale.value }] }))
 
   return (
-    <Animated.View
-      entering={FadeIn.duration(700)}
-      style={flipped ? styles.circleContainerFlipped : styles.circleContainer}
+    <Pressable
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={styles.panelPressable}
     >
-      {!flipped && label}
+      <Animated.View style={[styles.panel, { height: PANEL_H }, panelStyle]}>
+        {/* Glass fill */}
+        <LinearGradient
+          colors={
+            isActive
+              ? ['rgba(194,71,109,0.20)', 'rgba(139,26,74,0.08)']
+              : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)']
+          }
+          start={{ x: side === 'left' ? 0 : 1, y: 0 }}
+          end={{ x: side === 'left' ? 1 : 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {/* Border overlay */}
+        <View
+          pointerEvents="none"
+          style={[styles.panelBorder, isActive && styles.panelBorderActive]}
+        />
+        {/* Glow bloom */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.panelGlow,
+            glowStyle,
+            { [side === 'left' ? 'left' : 'right']: 0 },
+          ]}
+        />
+        {/* Content */}
+        <View style={styles.panelContent}>
+          <Text style={[styles.panelName, isActive && styles.panelNameActive]} numberOfLines={1}>
+            {name}
+          </Text>
+          <Animated.View style={[styles.fingerDot, isActive && styles.fingerDotActive, dotStyle]}>
+            <View style={[styles.fingerDotInner, isActive && styles.fingerDotInnerActive]} />
+          </Animated.View>
+          <Text style={[styles.holdHint, isActive && styles.holdHintActive]}>
+            {isActive ? 'удерживайте' : 'нажмите\nи держите'}
+          </Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  )
+}
 
-      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} style={styles.pressTarget}>
-        {/* Glow ring */}
-        <Animated.View style={[styles.glowRing, glowStyle]} />
+// ─── Consent Gate ─────────────────────────────────────────────────────────────
+export function RitualConsentGate({ participants, onComplete }: RitualConsentGateProps) {
+  const [p1Active, setP1Active] = useState(false)
+  const [p2Active, setP2Active] = useState(false)
 
-        {/* Static track ring via SVG */}
-        <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE} style={StyleSheet.absoluteFill}>
-          <Circle
-            cx={CIRCLE_SIZE / 2}
-            cy={CIRCLE_SIZE / 2}
-            r={CIRCLE_SIZE / 2 - 2}
-            fill="none"
-            stroke={isConfirmed ? Colors.accent : 'rgba(255,255,255,0.1)'}
-            strokeWidth={isConfirmed ? 1.5 : 1}
-          />
-        </Svg>
+  const p1Ref = useRef(false)
+  const p2Ref = useRef(false)
+  const progressRef = useRef(0)
+  const progressShared = useSharedValue(0)
+  const completedRef = useRef(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-        {/* Inner circle */}
-        <Animated.View style={[styles.innerCircle, isConfirmed && styles.innerCircleConfirmed, pressStyle]}>
-          <FingerprintIcon size={42} opacity={isConfirmed ? 0.88 : 0.4} />
-        </Animated.View>
-      </Pressable>
+  const fillStyle = useAnimatedStyle(() => ({
+    height: interpolate(progressShared.value, [0, 1], [0, TRACK_H]),
+  }))
 
-      {flipped && label}
+  const instrStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progressShared.value, [0, 0.1], [1, 0.5]),
+  }))
+
+  const handleComplete = useCallback(() => {
+    if (completedRef.current) return
+    completedRef.current = true
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    progressShared.value = withTiming(1, { duration: 120 })
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
+    }
+    setTimeout(onComplete, 380)
+  }, [onComplete, progressShared])
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      if (completedRef.current) return
+      if (!p1Ref.current || !p2Ref.current) return
+      progressRef.current = Math.min(1, progressRef.current + TICK_MS / HOLD_MS)
+      progressShared.value = progressRef.current
+      if (progressRef.current >= 1) {
+        handleComplete()
+      }
+    }, TICK_MS)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [handleComplete, progressShared])
+
+  const startHold = useCallback((key: 'p1' | 'p2') => {
+    if (completedRef.current) return
+    if (key === 'p1') { p1Ref.current = true; setP1Active(true) }
+    else { p2Ref.current = true; setP2Active(true) }
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null)
+    }
+  }, [])
+
+  const cancelHold = useCallback((key: 'p1' | 'p2') => {
+    if (completedRef.current) return
+    if (key === 'p1') { p1Ref.current = false; setP1Active(false) }
+    else { p2Ref.current = false; setP2Active(false) }
+    progressRef.current = 0
+    progressShared.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) })
+  }, [progressShared])
+
+  const bothActive = p1Active && p2Active
+
+  return (
+    <Animated.View entering={FadeIn.duration(900)} style={styles.container}>
+      {/* Instruction */}
+      <Animated.Text style={[styles.instruction, bothActive && styles.instructionBoth, instrStyle]}>
+        {bothActive ? 'держите оба...' : 'оба партнёра удерживают одновременно'}
+      </Animated.Text>
+
+      {/* Panels + progress */}
+      <View style={styles.panelsRow}>
+        <HoldPanel
+          name={participants.p1.name}
+          side="left"
+          isActive={p1Active}
+          onPressIn={() => startHold('p1')}
+          onPressOut={() => cancelHold('p1')}
+        />
+
+        {/* Center progress indicator */}
+        <View style={styles.centerColumn}>
+          <View style={[styles.progressTrack, { height: TRACK_H }]}>
+            <Animated.View style={[styles.progressFill, fillStyle]} />
+          </View>
+        </View>
+
+        <HoldPanel
+          name={participants.p2.name}
+          side="right"
+          isActive={p2Active}
+          onPressIn={() => startHold('p2')}
+          onPressOut={() => cancelHold('p2')}
+        />
+      </View>
     </Animated.View>
   )
 }
 
-export function RitualConsentGate({ participants, onComplete }: RitualConsentGateProps) {
-  const [confirmed, setConfirmed] = useState<{ p1: boolean; p2: boolean }>({ p1: false, p2: false })
-  const holdTimers = useRef<Partial<Record<'p1' | 'p2', ReturnType<typeof globalThis.setTimeout>>>>({})
-  const completedRef = useRef(false)
-
-  useEffect(() => {
-    const activeTimers = holdTimers.current
-    return () => {
-      Object.values(activeTimers).forEach((timer) => timer && globalThis.clearTimeout(timer))
-    }
-  }, [])
-
-  useEffect(() => {
-    if (completedRef.current) return
-    if (confirmed.p1 && confirmed.p2) {
-      completedRef.current = true
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
-      }
-      onComplete()
-    }
-  }, [confirmed, onComplete])
-
-  const startHold = (key: 'p1' | 'p2') => {
-    if (confirmed[key]) return
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null)
-    }
-    holdTimers.current[key] = globalThis.setTimeout(() => {
-      setConfirmed((state) => ({ ...state, [key]: true }))
-    }, HOLD_MS)
-  }
-
-  const cancelHold = (key: 'p1' | 'p2') => {
-    if (holdTimers.current[key]) {
-      globalThis.clearTimeout(holdTimers.current[key])
-      holdTimers.current[key] = undefined
-    }
-  }
-
-  return (
-    <View style={styles.screen}>
-      <LinearGradient
-        colors={['#5C1230', '#3A0C1C', '#1E0810', '#0A0408']}
-        start={{ x: 0.3, y: 0 }}
-        end={{ x: 0.7, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <HoldCircle
-        name={participants.p1.name}
-        isConfirmed={confirmed.p1}
-        onPressIn={() => startHold('p1')}
-        onPressOut={() => cancelHold('p1')}
-        flipped
-      />
-
-      <Animated.View entering={FadeIn.duration(800).delay(500)} style={styles.center}>
-        <Text style={styles.centerText}>HOLD TO BEGIN</Text>
-      </Animated.View>
-
-      <HoldCircle
-        name={participants.p2.name}
-        isConfirmed={confirmed.p2}
-        onPressIn={() => startHold('p2')}
-        onPressOut={() => cancelHold('p2')}
-      />
-    </View>
-  )
-}
-
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 60,
+    justifyContent: 'center',
+    gap: 36,
+    paddingHorizontal: 20,
   },
-  circleContainer: {
-    alignItems: 'center',
-    gap: Spacing.md,
+  instruction: {
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: 'rgba(245,240,242,0.28)',
+    textTransform: 'uppercase',
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 16,
   },
-  circleContainerFlipped: {
-    alignItems: 'center',
-    gap: Spacing.md,
-    flexDirection: 'column-reverse',
-  },
-  holdLabel: {
-    fontFamily: Fonts.display,
-    fontSize: 11,
-    fontWeight: '300' as const,
-    color: 'rgba(245, 240, 242, 0.45)',
-    letterSpacing: 3.2,
-    textTransform: 'uppercase' as const,
-  },
-  holdLabelReady: {
+  instructionBoth: {
     color: Colors.accent,
+    letterSpacing: 3,
   },
-  pressTarget: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
+  panelsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: 10,
+  },
+  panelPressable: {
+    flex: 1,
+  },
+  panel: {
+    borderRadius: 24,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glowRing: {
-    position: 'absolute',
-    width: CIRCLE_SIZE + 18,
-    height: CIRCLE_SIZE + 18,
-    borderRadius: (CIRCLE_SIZE + 18) / 2,
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 14,
-    elevation: 10,
+  panelBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
   },
-  innerCircle: {
-    width: CIRCLE_SIZE - 22,
-    height: CIRCLE_SIZE - 22,
-    borderRadius: (CIRCLE_SIZE - 22) / 2,
+  panelBorderActive: {
+    borderColor: 'rgba(194,71,109,0.45)',
+  },
+  panelGlow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '50%',
+    shadowColor: Colors.accent,
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  panelContent: {
+    alignItems: 'center',
+    gap: 18,
+    paddingHorizontal: 12,
+  },
+  panelName: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: 'rgba(245,240,242,0.38)',
+    fontWeight: '300',
+    letterSpacing: 0.2,
+  },
+  panelNameActive: {
+    color: 'rgba(245,240,242,0.90)',
+  },
+  fingerDot: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  innerCircleConfirmed: {
-    backgroundColor: 'rgba(194, 71, 109, 0.16)',
+  fingerDotActive: {
+    borderColor: Colors.accent,
+    backgroundColor: 'rgba(194,71,109,0.14)',
   },
-  center: {
+  fingerDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  fingerDotInnerActive: {
+    backgroundColor: Colors.accent,
+  },
+  holdHint: {
+    fontSize: 9,
+    letterSpacing: 2,
+    color: 'rgba(245,240,242,0.22)',
+    textTransform: 'uppercase',
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 15,
+  },
+  holdHintActive: {
+    color: 'rgba(245,240,242,0.55)',
+  },
+  centerColumn: {
+    width: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  centerText: {
-    ...Typography.label,
-    color: 'rgba(245, 240, 242, 0.24)',
-    letterSpacing: 2.5,
+  progressTrack: {
+    width: 2,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 1,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  progressFill: {
+    width: 2,
+    backgroundColor: Colors.accent,
+    borderRadius: 1,
+    shadowColor: Colors.accent,
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
   },
 })
