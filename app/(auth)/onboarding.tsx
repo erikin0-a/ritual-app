@@ -1,339 +1,557 @@
-import { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
+  Dimensions,
   TextInput,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native'
 import { router } from 'expo-router'
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme'
-import { Button } from '@/components/ui/Button'
-import { ScreenContainer } from '@/components/common/ScreenContainer'
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  FadeOut,
+  SlideInRight,
+  SlideOutLeft,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
+import { Colors, Fonts, BorderRadius, Spacing } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { Analytics } from '@/lib/analytics'
-import type { IntimacyLevel, DurationPreference } from '@/types'
+import { LiquidBackground } from '@/components/ui/LiquidBackground'
+import type { ParticipantGender } from '@/types'
+import { createRitualParticipants } from '@/lib/ritual-participants'
 
-const TOTAL_STEPS = 3
+const { height, width } = Dimensions.get('window')
 
-// ─── Step 1 data ────────────────────────────────────────────────────────────
+type Step = 'age' | 'names'
 
-interface IntimacyOption {
-  value: IntimacyLevel
-  emoji: string
-  label: string
-  description: string
+interface PartnerInput {
+  name: string
+  gender: ParticipantGender
 }
 
-const INTIMACY_OPTIONS: IntimacyOption[] = [
-  { value: 'light', emoji: '🤗', label: 'Нежно', description: 'Объятия, поцелуи, нежность' },
-  { value: 'moderate', emoji: '🔥', label: 'Умеренно', description: 'Больше страсти и игривости' },
-  { value: 'spicy', emoji: '⚡', label: 'Огненно', description: 'Максимальный накал' },
-]
-
-// ─── Step 2 data ────────────────────────────────────────────────────────────
-
-interface DurationOption {
-  value: DurationPreference
-  emoji: string
+// ─── Gender Pill ─────────────────────────────────────────────────────────────
+function GenderPill({
+  label,
+  selected,
+  onPress,
+}: {
   label: string
-  description: string
-}
-
-const DURATION_OPTIONS: DurationOption[] = [
-  { value: 'short', emoji: '⚡', label: 'Быстро', description: '~15 минут' },
-  { value: 'standard', emoji: '✨', label: 'Стандартно', description: '~30 минут' },
-  { value: 'extended', emoji: '🌙', label: 'Долго', description: '~60 минут' },
-]
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-interface OptionCardProps {
-  emoji: string
-  label: string
-  description: string
   selected: boolean
   onPress: () => void
-}
+}) {
+  const scale = useSharedValue(1)
+  const pillStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
 
-function OptionCard({ emoji, label, description, selected, onPress }: OptionCardProps) {
   return (
     <Pressable
-      style={[styles.optionCard, selected && styles.optionCardSelected]}
+      onPressIn={() => { scale.value = withTiming(0.94, { duration: 100 }) }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 12 }) }}
       onPress={onPress}
+      hitSlop={8}
     >
-      <Text style={styles.optionEmoji}>{emoji}</Text>
-      <View style={styles.optionTextContainer}>
-        <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
-        <Text style={styles.optionDescription}>{description}</Text>
-      </View>
-      <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-        {selected && <View style={styles.radioInner} />}
-      </View>
+      <Animated.View style={[styles.genderPill, selected && styles.genderPillActive, pillStyle]}>
+        <Text style={[styles.genderPillText, selected && styles.genderPillTextActive]}>
+          {label}
+        </Text>
+      </Animated.View>
     </Pressable>
   )
 }
 
-function StepDots({ current }: { current: number }) {
+// ─── Partner Input Card ───────────────────────────────────────────────────────
+function PartnerCard({
+  label,
+  value,
+  gender,
+  onNameChange,
+  onGenderChange,
+  placeholder,
+  index,
+}: {
+  label: string
+  value: string
+  gender: ParticipantGender
+  onNameChange: (text: string) => void
+  onGenderChange: (gender: ParticipantGender) => void
+  placeholder: string
+  index: number
+}) {
+  const [focused, setFocused] = useState(false)
+  const borderOpacity = useSharedValue(0)
+
+  const borderStyle = useAnimatedStyle(() => ({
+    borderColor: `rgba(194, 71, 109, ${borderOpacity.value})`,
+  }))
+
+  function handleFocus() {
+    setFocused(true)
+    borderOpacity.value = withTiming(0.7, { duration: 220 })
+  }
+
+  function handleBlur() {
+    setFocused(false)
+    borderOpacity.value = withTiming(0, { duration: 300 })
+  }
+
   return (
-    <View style={styles.dotsRow}>
-      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-        <View
-          key={i}
-          style={[styles.dot, i === current - 1 && styles.dotActive]}
+    <Animated.View
+      entering={FadeInDown.delay(index * 120).duration(600).springify()}
+      style={styles.partnerCard}
+    >
+      <Animated.View style={[styles.cardInner, borderStyle]}>
+        <Text style={styles.cardLabel}>{label}</Text>
+        <TextInput
+          style={styles.nameInput}
+          value={value}
+          onChangeText={onNameChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          placeholderTextColor="rgba(255,255,255,0.2)"
+          autoCorrect={false}
+          autoCapitalize="words"
+          returnKeyType="next"
+          maxLength={24}
         />
-      ))}
-    </View>
+        <View style={styles.genderRow}>
+          <Text style={styles.genderLabel}>пол:</Text>
+          <GenderPill label="Он" selected={gender === 'm'} onPress={() => onGenderChange('m')} />
+          <GenderPill label="Она" selected={gender === 'f'} onPress={() => onGenderChange('f')} />
+        </View>
+      </Animated.View>
+    </Animated.View>
   )
 }
 
-// ─── Main screen ─────────────────────────────────────────────────────────────
+// ─── Age Gate Screen ──────────────────────────────────────────────────────────
+function AgeGateScreen({ onConfirm, onReject }: { onConfirm: () => void; onReject: () => void }) {
+  return (
+    <Animated.View
+      entering={FadeIn.duration(600)}
+      exiting={SlideOutLeft.duration(350)}
+      style={styles.stepContainer}
+    >
+      <Animated.View entering={FadeInUp.duration(1000).delay(200)} style={styles.brandContainer}>
+        <Text style={styles.brandTitle}>
+          Ritual <Text style={styles.brandItalic}>depth</Text>
+        </Text>
+      </Animated.View>
 
-export default function OnboardingScreen() {
-  const [step, setStep] = useState(1)
-  const [intimacyLevel, setIntimacyLevel] = useState<IntimacyLevel | null>(null)
-  const [durationPreference, setDurationPreference] = useState<DurationPreference | null>(null)
-  const [partnerName, setPartnerName] = useState('')
+      <Animated.View entering={FadeIn.duration(1000).delay(600)} style={styles.messageBox}>
+        <Text style={styles.warningTitle}>ВНИМАНИЕ</Text>
+        <Text style={styles.description}>
+          Данное приложение предназначено исключительно для совершеннолетних.{'\n'}
+          Пожалуйста, подтвердите ваш возраст.
+        </Text>
+      </Animated.View>
 
-  const { setOnboardingPrefs, completeOnboarding } = useAuthStore()
+      <Animated.View entering={FadeInDown.duration(1000).delay(1000)} style={styles.actionContainer}>
+        <Pressable
+          style={({ pressed }) => [styles.primaryBtn, pressed && styles.btnPressed]}
+          onPress={onConfirm}
+        >
+          <Text style={styles.primaryBtnText}>МНЕ ЕСТЬ 18 ЛЕТ</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.btnPressed]}
+          onPress={onReject}
+        >
+          <Text style={styles.secondaryBtnText}>МНЕ НЕТ 18 ЛЕТ</Text>
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
+  )
+}
 
-  function handleNext() {
-    if (step < TOTAL_STEPS) {
-      setStep(step + 1)
-    } else {
-      finishOnboarding()
+// ─── Names Screen ─────────────────────────────────────────────────────────────
+function NamesScreen({
+  p1,
+  p2,
+  onP1Change,
+  onP2Change,
+  onConfirm,
+}: {
+  p1: PartnerInput
+  p2: PartnerInput
+  onP1Change: (val: Partial<PartnerInput>) => void
+  onP2Change: (val: Partial<PartnerInput>) => void
+  onConfirm: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+
+  const btnScale = useSharedValue(1)
+  const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: btnScale.value }] }))
+
+  function validate() {
+    if (p1.name.trim().length < 2) {
+      setError('Имя первого партнёра должно быть не менее 2 символов')
+      return false
     }
+    if (p2.name.trim().length < 2) {
+      setError('Имя второго партнёра должно быть не менее 2 символов')
+      return false
+    }
+    setError(null)
+    return true
   }
 
-  function handleSkipPartner() {
-    finishOnboarding()
+  function handleConfirm() {
+    if (!validate()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {})
+      return
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {})
+    onConfirm()
   }
 
-  function finishOnboarding() {
+  const canProceed = p1.name.trim().length >= 2 && p2.name.trim().length >= 2
+
+  return (
+    <Animated.View
+      entering={SlideInRight.duration(400)}
+      style={styles.stepContainer}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={40}
+      >
+        <ScrollView
+          contentContainerStyle={styles.namesScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View entering={FadeInDown.duration(600).delay(100)} style={styles.namesHeader}>
+            <Text style={styles.namesTitle}>
+              Кто <Text style={styles.namesTitleItalic}>сегодня</Text>
+            </Text>
+            <Text style={styles.namesSubtitle}>
+              Введите имена, чтобы ритуал обращался к вам лично
+            </Text>
+          </Animated.View>
+
+          <View style={styles.cardsContainer}>
+            <PartnerCard
+              label="ПАРТНЁР 1"
+              value={p1.name}
+              gender={p1.gender}
+              onNameChange={(text) => onP1Change({ name: text })}
+              onGenderChange={(gender) => onP1Change({ gender })}
+              placeholder="Имя"
+              index={0}
+            />
+            <PartnerCard
+              label="ПАРТНЁР 2"
+              value={p2.name}
+              gender={p2.gender}
+              onNameChange={(text) => onP2Change({ name: text })}
+              onGenderChange={(gender) => onP2Change({ gender })}
+              placeholder="Имя"
+              index={1}
+            />
+          </View>
+
+          {error && (
+            <Animated.Text entering={FadeIn.duration(300)} style={styles.errorText}>
+              {error}
+            </Animated.Text>
+          )}
+
+          <Animated.View entering={FadeInDown.duration(600).delay(400)} style={styles.confirmBtnWrapper}>
+            <Pressable
+              onPressIn={() => { btnScale.value = withTiming(0.97, { duration: 100 }) }}
+              onPressOut={() => { btnScale.value = withSpring(1, { damping: 12 }) }}
+              onPress={handleConfirm}
+            >
+              <Animated.View style={[styles.confirmBtn, !canProceed && styles.confirmBtnDisabled, btnStyle]}>
+                <Text style={[styles.confirmBtnText, !canProceed && styles.confirmBtnTextDisabled]}>
+                  НАЧАТЬ РИТУАЛ
+                </Text>
+              </Animated.View>
+            </Pressable>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Animated.View>
+  )
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function OnboardingScreen() {
+  const { setOnboardingPrefs, setRitualParticipants, completeOnboarding } = useAuthStore()
+  const [step, setStep] = useState<Step>('age')
+  const [p1, setP1] = useState<PartnerInput>({ name: '', gender: 'm' })
+  const [p2, setP2] = useState<PartnerInput>({ name: '', gender: 'f' })
+
+  function handleConfirmAge() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+    setStep('names')
+  }
+
+  function handleRejectAge() {
+    alert('Приложение доступно только для совершеннолетних.')
+  }
+
+  function handleConfirmNames() {
+    // setOnboardingPrefs first (it resets participants to p2-only defaults)
     setOnboardingPrefs({
-      intimacyLevel: intimacyLevel ?? 'moderate',
-      durationPreference: durationPreference ?? 'standard',
-      partnerName: partnerName.trim() || null,
+      intimacyLevel: 'moderate',
+      durationPreference: 'standard',
+      partnerName: p2.name.trim(),
     })
+    // Override with full participants (both names + genders)
+    const participants = createRitualParticipants({
+      p1: { id: 'p1', name: p1.name.trim(), gender: p1.gender },
+      p2: { id: 'p2', name: p2.name.trim(), gender: p2.gender },
+    })
+    setRitualParticipants(participants)
     completeOnboarding()
     Analytics.onboardingCompleted()
     router.replace('/(main)')
   }
 
-  const isNextDisabled =
-    (step === 1 && !intimacyLevel) ||
-    (step === 2 && !durationPreference)
-
-  const nextLabel = step === TOTAL_STEPS ? 'Начать' : 'Далее'
-
   return (
-    <ScreenContainer>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <StepDots current={step} />
-            <Text style={styles.stepLabel}>Шаг {step} из {TOTAL_STEPS}</Text>
-          </View>
-
-          {/* Step 1 — Intimacy level */}
-          {step === 1 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.title}>Какой уровень близости?</Text>
-              <Text style={styles.subtitle}>Выберите, что подходит вам обоим</Text>
-              <View style={styles.optionsContainer}>
-                {INTIMACY_OPTIONS.map((opt) => (
-                  <OptionCard
-                    key={opt.value}
-                    {...opt}
-                    selected={intimacyLevel === opt.value}
-                    onPress={() => setIntimacyLevel(opt.value)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Step 2 — Duration */}
-          {step === 2 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.title}>Сколько времени?</Text>
-              <Text style={styles.subtitle}>Выберите продолжительность ритуала</Text>
-              <View style={styles.optionsContainer}>
-                {DURATION_OPTIONS.map((opt) => (
-                  <OptionCard
-                    key={opt.value}
-                    {...opt}
-                    selected={durationPreference === opt.value}
-                    onPress={() => setDurationPreference(opt.value)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Step 3 — Partner name */}
-          {step === 3 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.title}>Имя партнёра</Text>
-              <Text style={styles.subtitle}>Как вас называть друг другу? (необязательно)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Имя партнёра"
-                placeholderTextColor={Colors.textSecondary}
-                value={partnerName}
-                onChangeText={setPartnerName}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleNext}
-                maxLength={30}
-              />
-            </View>
-          )}
-
-          {/* Footer actions */}
-          <View style={styles.footer}>
-            <Button
-              title={nextLabel}
-              onPress={handleNext}
-              disabled={isNextDisabled}
-              fullWidth
-            />
-            {step === TOTAL_STEPS && (
-              <Pressable style={styles.skipButton} onPress={handleSkipPartner}>
-                <Text style={styles.skipLabel}>Пропустить</Text>
-              </Pressable>
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ScreenContainer>
+    <View style={styles.container}>
+      <LiquidBackground />
+      <View style={styles.content}>
+        {step === 'age' ? (
+          <AgeGateScreen onConfirm={handleConfirmAge} onReject={handleRejectAge} />
+        ) : (
+          <NamesScreen
+            p1={p1}
+            p2={p2}
+            onP1Change={(val) => setP1((prev) => ({ ...prev, ...val }))}
+            onP2Change={(val) => setP2((prev) => ({ ...prev, ...val }))}
+            onConfirm={handleConfirmNames}
+          />
+        )}
+      </View>
+    </View>
   )
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  scroll: {
+  container: {
+    flex: 1,
+    backgroundColor: '#0D0A0F',
+  },
+  content: {
+    flex: 1,
+    zIndex: 10,
+  },
+
+  // ─── Step container ───────────────────────────────────────────────────────
+  stepContainer: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: height * 0.14,
+    paddingBottom: height * 0.07,
+    justifyContent: 'space-between',
+  },
+
+  // ─── Age Gate ─────────────────────────────────────────────────────────────
+  brandContainer: {
+    alignItems: 'center',
+  },
+  brandTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 48,
+    color: '#fff',
+    letterSpacing: -1,
+  },
+  brandItalic: {
+    fontStyle: 'italic',
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  messageBox: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  warningTitle: {
+    fontSize: 9,
+    letterSpacing: 4,
+    color: 'rgba(255,255,255,0.3)',
+    marginBottom: 20,
+    fontWeight: '600',
+  },
+  description: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center',
+    lineHeight: 23,
+    fontWeight: '300',
+    letterSpacing: 0.3,
+  },
+  actionContainer: {
+    gap: 14,
+  },
+  primaryBtn: {
+    backgroundColor: '#f5f2ed',
+    paddingVertical: 18,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+  },
+  primaryBtnText: {
+    color: '#0D0A0F',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2.5,
+  },
+  secondaryBtn: {
+    paddingVertical: 18,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  secondaryBtnText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 2,
+  },
+  btnPressed: {
+    opacity: 0.75,
+    transform: [{ scale: 0.98 }],
+  },
+
+  // ─── Names Screen ─────────────────────────────────────────────────────────
+  namesScrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: 0,
     paddingBottom: Spacing.xl,
   },
-  header: {
-    alignItems: 'center',
-    paddingTop: Spacing.lg,
-    marginBottom: Spacing.xxl,
+  namesHeader: {
+    marginBottom: 32,
   },
-  dotsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+  namesTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 44,
+    color: '#fff',
+    letterSpacing: -0.5,
+    marginBottom: 12,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surface,
+  namesTitleItalic: {
+    fontStyle: 'italic',
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.5)',
   },
-  dotActive: {
-    backgroundColor: Colors.accent,
-    width: 24,
+  namesSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '300',
+    lineHeight: 20,
   },
-  stepLabel: {
-    ...Typography.caption,
+
+  // ─── Partner Cards ────────────────────────────────────────────────────────
+  cardsContainer: {
+    gap: 16,
+    marginBottom: 16,
   },
-  stepContent: {
-    flex: 1,
+  partnerCard: {
+    width: '100%',
   },
-  title: {
-    ...Typography.h1,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
-  },
-  optionsContainer: {
-    gap: Spacing.md,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
+  cardInner: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.md,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    gap: 12,
   },
-  optionCardSelected: {
-    borderColor: Colors.accent,
-    backgroundColor: 'rgba(255, 79, 139, 0.08)',
+  cardLabel: {
+    fontSize: 9,
+    letterSpacing: 3,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
-  optionEmoji: {
-    fontSize: 28,
+  nameInput: {
+    fontSize: 26,
+    fontFamily: Fonts.display,
+    color: '#fff',
+    fontWeight: '300',
+    letterSpacing: -0.3,
+    paddingVertical: 4,
+    minHeight: 36,
   },
-  optionTextContainer: {
-    flex: 1,
-  },
-  optionLabel: {
-    ...Typography.h3,
-    marginBottom: 2,
-  },
-  optionLabelSelected: {
-    color: Colors.accent,
-  },
-  optionDescription: {
-    ...Typography.caption,
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: BorderRadius.full,
-    borderWidth: 2,
-    borderColor: Colors.border,
+  genderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    marginTop: 4,
   },
-  radioOuterSelected: {
+  genderLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.25)',
+    fontWeight: '400',
+    marginRight: 2,
+  },
+  genderPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  genderPillActive: {
+    backgroundColor: Colors.accent,
     borderColor: Colors.accent,
   },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: BorderRadius.full,
+  genderPillText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  genderPillTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
+  // ─── Error ────────────────────────────────────────────────────────────────
+  errorText: {
+    fontSize: 12,
+    color: Colors.danger,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '400',
+  },
+
+  // ─── Confirm Button ───────────────────────────────────────────────────────
+  confirmBtnWrapper: {
+    marginTop: 8,
+  },
+  confirmBtn: {
     backgroundColor: Colors.accent,
-  },
-  textInput: {
-    ...Typography.h3,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    color: Colors.text,
-  },
-  footer: {
-    marginTop: Spacing.xxl,
-    gap: Spacing.md,
-  },
-  skipButton: {
+    paddingVertical: 18,
+    borderRadius: BorderRadius.full,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
   },
-  skipLabel: {
-    ...Typography.body,
-    color: Colors.textSecondary,
+  confirmBtnDisabled: {
+    backgroundColor: 'rgba(194,71,109,0.25)',
+  },
+  confirmBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2.5,
+  },
+  confirmBtnTextDisabled: {
+    color: 'rgba(255,255,255,0.3)',
   },
 })

@@ -1,162 +1,121 @@
 import React, { useEffect } from 'react'
-import { StyleSheet, View, Dimensions, Platform } from 'react-native'
+import { StyleSheet, View, Dimensions } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withSequence,
   Easing,
-  withDelay,
 } from 'react-native-reanimated'
-import { Colors } from '@/constants/theme'
+import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
 
 const { width, height } = Dimensions.get('window')
 
-// A single floating blob component
-function Blob({
-  size,
-  color,
-  initialX,
-  initialY,
-  duration,
-  delay = 0,
-}: {
-  size: number
-  color: string
-  initialX: number
-  initialY: number
-  duration: number
-  delay?: number
-}) {
-  const translateX = useSharedValue(initialX)
-  const translateY = useSharedValue(initialY)
-  const scale = useSharedValue(1)
-
-  useEffect(() => {
-    translateX.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(initialX + (Math.random() * 100 - 50), {
-          duration: duration,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        -1,
-        true
-      )
-    )
-    translateY.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(initialY + (Math.random() * 100 - 50), {
-          duration: duration * 1.2,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        -1,
-        true
-      )
-    )
-    scale.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(1.2, {
-          duration: duration * 1.5,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        -1,
-        true
-      )
-    )
-  }, [])
-
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }))
-
+/**
+ * Noise Overlay Component
+ * Creates an SVG noise pattern to simulate film grain.
+ */
+const NoiseOverlay = () => {
   return (
-    <Animated.View
-      style={[
-        styles.blob,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: color,
-        },
-        style,
-      ]}
-    />
+    <View style={[StyleSheet.absoluteFill, { opacity: 0.15, zIndex: 10 }]} pointerEvents="none">
+      <View style={styles.noiseContainer} />
+    </View>
   )
 }
 
-export function LiquidBackground() {
+/**
+ * LiquidBackground
+ * A strict, minimalist background. 
+ * Pure deep dark canvas with an ultra-subtle dusty rose breathing highlight.
+ */
+export const LiquidBackground = () => {
+  // Single subtle breathing animation
+  const pulseScale = useSharedValue(1)
+  const pulseOpacity = useSharedValue(0.3)
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.2, { duration: 15000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 15000, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    )
+
+    pulseOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.5, { duration: 12000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.2, { duration: 12000, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    )
+  }, [])
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  }))
+
   return (
-    <View style={StyleSheet.absoluteFill}>
-      <View style={styles.background} />
+    <View style={styles.container}>
+      {/* Base Canvas */}
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['#080808', '#000000']}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+
+      {/* Subtle Dusty Rose Pulse */}
+      <Animated.View style={[styles.dustyRosePulse, pulseStyle]} />
+
+      {/* Global Blur Filter */}
+      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+
+      {/* Vintage Noise Texture */}
+      <NoiseOverlay />
       
-      {/* Layer 1: Deep purple/dark base */}
-      <Blob
-        size={width * 1.2}
-        color="#1A0510"
-        initialX={-width * 0.2}
-        initialY={-height * 0.2}
-        duration={10000}
-      />
-
-      {/* Layer 2: Accent color blobs */}
-      <Blob
-        size={width * 0.8}
-        color={`${Colors.accent}40`} // 40 = ~25% opacity
-        initialX={width * 0.4}
-        initialY={height * 0.1}
-        duration={8000}
-        delay={1000}
-      />
-      
-      <Blob
-        size={width * 0.9}
-        color={`${Colors.accent}20`}
-        initialX={-width * 0.2}
-        initialY={height * 0.5}
-        duration={9000}
-        delay={500}
-      />
-
-      <Blob
-        size={width * 0.7}
-        color="#6A1B4D40"
-        initialX={width * 0.3}
-        initialY={height * 0.7}
-        duration={11000}
-        delay={2000}
-      />
-
-      {/* Overlay blur to smooth everything out */}
-      {/* Note: On Android, simple View with opacity/blurRadius is tricky. 
-          We rely on the blobs being soft. If we need real blur, we'd use expo-blur 
-          but it can be expensive. For "liquid" feel, soft shapes are usually enough. 
-          Let's add a dark overlay to ensure text contrast. */}
-      <View style={styles.overlay} />
+      {/* Subtle Vignette */}
+      <View style={styles.vignette} pointerEvents="none">
+        <LinearGradient
+          colors={['rgba(0,0,0,0.8)', 'transparent', 'transparent', 'rgba(0,0,0,0.9)']}
+          locations={[0, 0.2, 0.8, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  background: {
+  container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000',
+    overflow: 'hidden',
   },
-  blob: {
+  dustyRosePulse: {
     position: 'absolute',
-    opacity: 0.6,
+    top: height * 0.1,
+    left: width * 0.1,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: 'rgba(164, 115, 126, 0.15)', // Dusty Rose
+    filter: [{ blur: 60 }], // Fallback for web, native is handled by BlurView
   },
-  overlay: {
+  noiseContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12, 12, 12, 0.3)', // Subtle dark overlay
-    // backdropFilter is web-only and can cause issues if not handled
-    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(30px)' } : {}),
+    backgroundColor: 'transparent',
+    // We use a CSS trick for noise on web, on native we might need a tiled image or SVG if strictly requested.
+    // For now, React Native web handles this well, and native can use this as a placeholder for a true noise asset.
+    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+  },
+  vignette: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
   },
 })

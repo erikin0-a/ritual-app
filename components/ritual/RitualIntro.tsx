@@ -234,7 +234,7 @@ function ConsentCircle({ position, onConfirm, visible, mergeProgress }: ConsentC
           cy={CONT / 2}
           r={RING_R}
           fill="none"
-          stroke={confirmed ? 'rgba(185, 255, 210, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
+          stroke={confirmed ? '#f5f2ed' : 'rgba(255, 255, 255, 0.9)'}
           strokeWidth={2.5}
           strokeDasharray={String(CIRC)}
           strokeLinecap="round"
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     width: CONT * 1.8,
     height: CONT * 1.8,
     borderRadius: CONT,
-    backgroundColor: 'rgba(255, 210, 235, 0.25)',
+    backgroundColor: 'rgba(164, 115, 126, 0.15)',
     ...(Platform.OS === 'web' ? { filter: 'blur(32px)' } : {}),
   },
   innerCircle: {
@@ -476,8 +476,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   innerCircleConfirmed: {
-    backgroundColor: 'rgba(185, 255, 210, 0.12)',
-    borderColor: 'rgba(185, 255, 210, 0.5)',
+    backgroundColor: 'rgba(245, 242, 237, 0.12)',
+    borderColor: 'rgba(245, 242, 237, 0.5)',
   },
   innerIcon: {
     fontSize: 22,
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   },
   innerIconConfirmed: {
     fontSize: 26,
-    color: 'rgba(185, 255, 210, 0.95)',
+    color: '#f5f2ed',
     marginBottom: 0,
   },
   innerHint: {
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   innerHintConfirmed: {
-    color: 'rgba(185, 255, 210, 0.8)',
+    color: 'rgba(245, 242, 237, 0.8)',
   },
   partnerLabel: {
     position: 'absolute',

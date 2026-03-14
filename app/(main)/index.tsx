@@ -1,260 +1,273 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, SafeAreaView, Image } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Colors, Fonts, Spacing, Typography } from '@/constants/theme'
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
+import { BlurView } from 'expo-blur'
+import { Lock } from 'lucide-react-native'
+import * as Haptics from 'expo-haptics'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  interpolate,
+  interpolateColor,
+  FadeInDown,
+  withTiming,
+  FadeIn,
+} from 'react-native-reanimated'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { LiquidBackground } from '@/components/ui/LiquidBackground'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { Fonts } from '@/constants/theme'
 
-const ritualImg = require('@/assets/images/ritual-card.png')
-const chanceImg = require('@/assets/images/chance-card.png')
+const modes = [
+  { 
+    id: 'ritual', 
+    title: 'Ритуал', 
+    desc: 'Направляемое путешествие для двоих', 
+    active: true,
+    image: require('@/assets/images/ritual-card.png'),
+    num: '01'
+  },
+  { 
+    id: 'dice', 
+    title: 'Случайность', 
+    desc: 'Доверьтесь воле случая', 
+    active: false,
+    image: require('@/assets/images/chance-card.png'),
+    num: '02'
+  },
+  { 
+    id: 'stories', 
+    title: 'Фантазии', 
+    desc: 'Сюжетные ролевые погружения', 
+    active: false,
+    image: require('@/assets/images/chance-card.png'), // placeholder
+    num: '03'
+  },
+]
+
+function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: number, router: any }) {
+  const isPressed = useSharedValue(0)
+  
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(isPressed.value, [0, 1], [1, 0.98]) }],
+    backgroundColor: interpolateColor(
+      isPressed.value, 
+      [0, 1], 
+      ['rgba(255,255,255,0)', 'rgba(255,255,255,0.03)']
+    )
+  }))
+
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 200).duration(1000).springify()}>
+      <Pressable
+        onPressIn={() => { isPressed.value = withTiming(1, { duration: 150 }) }}
+        onPressOut={() => { isPressed.value = withTiming(0, { duration: 300 }) }}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+          if (mode.active) {
+            router.push(`/(main)/${mode.id}`)
+          }
+        }}
+        disabled={!mode.active}
+      >
+        <Animated.View style={[styles.rowContainer, !mode.active && styles.rowInactive, pressStyle]}>
+          <Image source={mode.image} style={styles.rowImage} resizeMode="cover" />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+          
+          <View style={styles.rowLeft}>
+            <Text style={styles.rowNum}>{mode.num}</Text>
+            <View>
+              <Text style={styles.rowTitle}>{mode.title}</Text>
+              <Text style={styles.rowDesc}>{mode.desc}</Text>
+            </View>
+          </View>
+
+          <View style={styles.rowRight}>
+            {mode.active ? (
+              <View style={styles.beginIndicator}>
+                <View style={styles.beginLine} />
+              </View>
+            ) : (
+              <View style={styles.lockCircle}>
+                <Lock color="rgba(255,255,255,0.4)" size={14} />
+              </View>
+            )}
+          </View>
+          
+          {/* Very thin separator line at the bottom */}
+          <View style={styles.separator} />
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  )
+}
 
 export default function ModesHubScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1500)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
-    <View style={styles.screen}>
-      <SafeAreaView style={styles.safe}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <Animated.View entering={FadeIn.duration(700)} style={styles.header}>
-            <Text style={styles.label}>МЕНЮ НА СЕГОДНЯ</Text>
-            <Text style={styles.heading}>Погружения</Text>
-          </Animated.View>
+    <View style={styles.container}>
+      <LiquidBackground />
 
-          <View style={styles.cards}>
-            {/* The Ritual */}
-            <Animated.View entering={FadeInDown.duration(600).delay(120)}>
-              <Pressable
-                style={({ pressed }) => [styles.card, styles.cardTall, pressed && styles.cardPressed]}
-                onPress={() => router.push('/(main)/ritual')}
-              >
-                <Image
-                  source={ritualImg}
-                  style={styles.cardBg}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0, 0, 0, 0.5)', 'rgba(8,8,8,0.94)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.cardContent}>
-                  <View style={styles.cardTextBlock}>
-                    <Text style={styles.cardTitle}>The Ritual</Text>
-                    <Text style={styles.cardDesc}>Направляемое чувственное погружение.</Text>
-                  </View>
-                  <View style={styles.beginRow}>
-                    <View style={styles.beginLine} />
-                    <Text style={styles.beginText}>Попробовать</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </Animated.View>
-
-            {/* Chance */}
-            <Animated.View entering={FadeInDown.duration(600).delay(260)}>
-              <Pressable
-                style={({ pressed }) => [styles.card, styles.cardShort, pressed && styles.cardPressed]}
-                onPress={() => router.push('/(main)/dice')}
-              >
-                <Image
-                  source={chanceImg}
-                  style={styles.cardBg}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(8,8,8,0.55)', 'rgba(8,8,8,0.95)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.cardContent}>
-                  <View style={styles.cardTextBlock}>
-                    <Text style={styles.cardTitle}>Chance</Text>
-                    <Text style={styles.cardDesc}>Random actions and spontaneous moments.</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </Animated.View>
-
-            {/* Mini row: Fantasy + Dice */}
-            <View style={styles.miniRow}>
-              {/* Fantasy */}
-              <View style={[styles.card, styles.cardMini]}>
-                <LinearGradient
-                  colors={['#1E1035', '#110820', '#080610']}
-                  start={{ x: 0.1, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.lockedBadge}>
-                  <Text style={styles.lockedBadgeText}>СКОРО</Text>
-                </View>
-                <View style={styles.miniContent}>
-                  <Text style={styles.miniTitle}>Fantasy</Text>
-                  <Text style={styles.miniDesc}>Сценарии и ролевые истории.</Text>
-                </View>
-              </View>
-
-              {/* Dice */}
-              <View style={[styles.card, styles.cardMini]}>
-                <LinearGradient
-                  colors={['#0E1E1A', '#080E0C', '#050808']}
-                  start={{ x: 0.1, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.lockedBadge}>
-                  <Text style={styles.lockedBadgeText}>СКОРО</Text>
-                </View>
-                <View style={styles.miniContent}>
-                  <Text style={styles.miniTitle}>Dice</Text>
-                  <Text style={styles.miniDesc}>Случайные раунды на удачу.</Text>
-                </View>
-              </View>
-            </View>
+      <Animated.View entering={FadeIn.duration(1200)} style={[styles.header, { paddingTop: insets.top + 24 }]}>
+        {isLoading ? (
+          <View style={{ gap: 16 }}>
+             <Skeleton style={{ width: 100, height: 10 }} />
+             <Skeleton style={{ width: 220, height: 40 }} />
           </View>
-        </ScrollView>
-      </SafeAreaView>
+        ) : (
+          <View>
+            <Text style={styles.subtitle}>Коллекция</Text>
+            <Text style={styles.title}>
+              Погружения <Text style={styles.titleItalic}>aura</Text>
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+
+      <View style={styles.listContainer}>
+        {isLoading ? (
+          <View style={{ gap: 32, marginTop: 40 }}>
+            <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
+            <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
+            <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
+          </View>
+        ) : (
+          <View style={styles.menuWrapper}>
+            {modes.map((mode, idx) => (
+              <StrictModeRow 
+                key={mode.id} 
+                mode={mode} 
+                index={idx} 
+                router={router} 
+              />
+            ))}
+          </View>
+        )}
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  safe: {
-    flex: 1,
-  },
-  scroll: {
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.xxxl,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.lg,
+    backgroundColor: '#000',
   },
   header: {
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    gap: Spacing.xs,
+    paddingHorizontal: 32,
+    zIndex: 30,
+    width: '100%',
   },
-  label: {
-    ...Typography.label,
-    color: Colors.accent,
-    letterSpacing: 3,
+  subtitle: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 10,
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+    fontWeight: '500',
+    marginBottom: 16,
   },
-  heading: {
+  title: {
+    fontSize: 36,
     fontFamily: Fonts.display,
-    fontSize: 42,
-    fontWeight: '300' as const,
-    color: Colors.text,
-    letterSpacing: -0.5,
+    color: 'white',
   },
-  cards: {
-    gap: Spacing.md,
+  titleItalic: {
+    fontStyle: 'italic',
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.6)',
   },
-  card: {
-    borderRadius: 20,
+  listContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  menuWrapper: {
+    gap: 0,
+  },
+  rowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 32,
+    position: 'relative',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
-  cardTall: {
-    height: 300,
+  rowInactive: {
+    opacity: 0.5,
   },
-  cardShort: {
-    height: 200,
-  },
-  cardPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.985 }],
-  },
-  cardBg: {
+  rowImage: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    borderRadius: 20,
+    opacity: 0.15,
   },
-  cardContent: {
-    flex: 1,
-    padding: Spacing.xl,
-    justifyContent: 'flex-end',
-    gap: Spacing.lg,
-  },
-  cardTextBlock: {
-    gap: Spacing.xs + 2,
-  },
-  cardTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 30,
-    fontWeight: '300' as const,
-    color: Colors.text,
-    letterSpacing: -0.2,
-  },
-  cardDesc: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    fontSize: 14,
-  },
-  beginRow: {
+  rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 24,
+  },
+  rowNum: {
+    fontFamily: Fonts.display,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.3)',
+    fontStyle: 'italic',
+  },
+  rowTitle: {
+    fontSize: 28,
+    fontFamily: Fonts.display,
+    color: 'white',
+    marginBottom: 6,
+  },
+  rowDesc: {
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+  },
+  rowRight: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  beginIndicator: {
+    width: 32,
+    alignItems: 'flex-end',
   },
   beginLine: {
-    width: 28,
     height: 1,
-    backgroundColor: Colors.accent,
+    width: 24,
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
-  beginText: {
-    ...Typography.label,
-    color: Colors.accent,
-    letterSpacing: 2.5,
-    fontSize: 10,
-  },
-  miniRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  cardMini: {
-    flex: 1,
-    height: 160,
-  },
-  lockedBadge: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+  lockCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  lockedBadgeText: {
-    ...Typography.label,
-    fontSize: 9,
-    letterSpacing: 1.8,
-    color: Colors.textMuted,
-  },
-  miniContent: {
-    flex: 1,
-    padding: Spacing.lg,
-    justifyContent: 'flex-end',
-    gap: 4,
-  },
-  miniTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 22,
-    fontWeight: '300' as const,
-    color: Colors.text,
-  },
-  miniDesc: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    fontSize: 12,
+  separator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
 })

@@ -75,8 +75,8 @@ function DimmingOrb({ pct }: { pct: number }) {
           <Svg width={240} height={240}>
             <Defs>
               <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor="#7D1D3F" stopOpacity={1} />
-                <Stop offset="55%" stopColor="#4A0E22" stopOpacity={0.8} />
+                <Stop offset="0%" stopColor="#A4737E" stopOpacity={0.8} />
+                <Stop offset="55%" stopColor="#553A41" stopOpacity={0.5} />
                 <Stop offset="100%" stopColor="#070304" stopOpacity={0} />
               </RadialGradient>
             </Defs>
@@ -86,7 +86,7 @@ function DimmingOrb({ pct }: { pct: number }) {
               cy={120}
               r={92}
               fill="none"
-              stroke="rgba(180,50,85,0.22)"
+              stroke="rgba(255,255,255,0.15)"
               strokeWidth={1}
             />
           </Svg>

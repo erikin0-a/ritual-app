@@ -4,11 +4,11 @@
     "slug": "ritual-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ritual-card.png",
     "scheme": "nightly",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/ritual-card.png",
       "resizeMode": "contain",
       "backgroundColor": "#1E1B2E"
     },
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/ritual-card.png",
         "backgroundColor": "#1E1B2E"
       },
       "package": "com.ritual.app"

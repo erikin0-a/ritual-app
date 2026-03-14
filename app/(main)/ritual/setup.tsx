@@ -7,40 +7,18 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   SafeAreaView,
-  Dimensions,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
-import { Svg, Defs, RadialGradient, Stop, Rect } from 'react-native-svg'
-import { Ionicons } from '@expo/vector-icons'
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
-import { Colors, Fonts, Spacing, Typography } from '@/constants/theme'
+import { ArrowRight } from 'lucide-react-native'
+import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, interpolate } from 'react-native-reanimated'
+import { Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { createRitualParticipants } from '@/lib/ritual-participants'
 import type { ParticipantGender, RitualMode } from '@/types'
-
-function BackgroundGradients() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="grad1" cx="0%" cy="25%" r="60%" fx="0%" fy="25%">
-            <Stop offset="0%" stopColor="#D22E88" stopOpacity="0.04" />
-            <Stop offset="100%" stopColor="#D22E88" stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="grad2" cx="100%" cy="75%" r="60%" fx="100%" fy="75%">
-            <Stop offset="0%" stopColor="#D22E88" stopOpacity="0.04" />
-            <Stop offset="100%" stopColor="#D22E88" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad1)" />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad2)" />
-      </Svg>
-    </View>
-  )
-}
+import { LiquidBackground } from '@/components/ui/LiquidBackground'
 
 function GenderSelector({
   value,
@@ -55,13 +33,14 @@ function GenderSelector({
         <Text style={[styles.genderText, value === 'm' ? styles.genderTextActive : styles.genderTextInactive]}>
           МУЖЧИНА
         </Text>
-        {value === 'm' && <Animated.View entering={FadeIn.duration(300)} style={styles.activeLine} />}
       </Pressable>
+      
+      <View style={styles.genderDot} />
+
       <Pressable onPress={() => onChange('f')} style={styles.genderBtn}>
         <Text style={[styles.genderText, value === 'f' ? styles.genderTextActive : styles.genderTextInactive]}>
           ЖЕНЩИНА
         </Text>
-        {value === 'f' && <Animated.View entering={FadeIn.duration(300)} style={styles.activeLine} />}
       </Pressable>
     </View>
   )
@@ -73,52 +52,32 @@ function PartnerPane({
   gender,
   onNameChange,
   onGenderChange,
-  isLast,
 }: {
   number: string
   name: string
   gender: ParticipantGender
   onNameChange: (text: string) => void
   onGenderChange: (g: ParticipantGender) => void
-  isLast?: boolean
 }) {
   return (
     <View style={styles.paneContainer}>
-      {/* Watermark */}
-      <Text style={[styles.watermark, number === '01' ? styles.watermarkLeft : styles.watermarkRight]}>
-        {number}
-      </Text>
-
-      <View style={styles.paneContent}>
-        {/* Label */}
-        <View style={styles.labelRow}>
-          <View style={styles.labelLine} />
-          <Text style={styles.labelText}>УЧАСТНИК {parseInt(number)}</Text>
-        </View>
-
-        {/* Input */}
-        <TextInput
-          style={styles.nameInput}
-          placeholder="Имя"
-          placeholderTextColor="rgba(255,255,255,0.1)"
-          value={name}
-          onChangeText={onNameChange}
-          selectionColor={Colors.accent}
-          autoCorrect={false}
-        />
-
-        {/* Gender */}
-        <GenderSelector value={gender} onChange={onGenderChange} />
+      <View style={styles.labelRow}>
+        <Text style={styles.numericLabel}>{number}</Text>
+        <Text style={styles.labelText}>УЧАСТНИК</Text>
       </View>
 
-      {!isLast && (
-        <LinearGradient
-          colors={['transparent', 'rgba(255,255,255,0.1)', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.divider}
-        />
-      )}
+      <TextInput
+        style={styles.nameInput}
+        placeholder="Имя"
+        placeholderTextColor="rgba(255,255,255,0.15)"
+        value={name}
+        onChangeText={onNameChange}
+        selectionColor="#f5f2ed" // Cream color
+        autoCorrect={false}
+      />
+      <View style={styles.inputUnderline} />
+
+      <GenderSelector value={gender} onChange={onGenderChange} />
     </View>
   )
 }
@@ -146,73 +105,82 @@ export default function RitualSetupScreen() {
 
   const isValid = partner1Name.trim().length > 0 && partner2Name.trim().length > 0
 
+  const btnPressed = useSharedValue(0)
+  const btnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(btnPressed.value, [0, 1], [1, 0.98]) }]
+  }))
+
   return (
-    <View style={styles.screen}>
-      <BackgroundGradients />
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          </Pressable>
-        </View>
-
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.flex}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.screen}>
+        <LiquidBackground />
+        
+        <SafeAreaView style={styles.safe}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.flex}
           >
-            <Animated.View entering={FadeInDown.duration(800)}>
-              <PartnerPane
-                number="01"
-                name={partner1Name}
-                gender={partner1Gender}
-                onNameChange={setPartner1Name}
-                onGenderChange={setPartner1Gender}
-              />
-              <PartnerPane
-                number="02"
-                name={partner2Name}
-                gender={partner2Gender}
-                onNameChange={setPartner2Name}
-                onGenderChange={setPartner2Gender}
-                isLast
-              />
+            {/* Header */}
+            <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
+              <Pressable style={styles.backBtn} onPress={() => router.back()}>
+                <ArrowRight size={16} color="rgba(255,255,255,0.7)" style={{ transform: [{ rotate: '180deg' }] }} />
+              </Pressable>
+              <Text style={styles.topLabel}>ПОДГОТОВКА</Text>
+              <View style={styles.backSpacer} />
             </Animated.View>
-          </ScrollView>
 
-          {/* Floating Action Button */}
-          <Animated.View 
-            entering={FadeIn.duration(600).delay(200)}
-            style={styles.fabContainer}
-          >
-            <Pressable
-              style={({ pressed }) => [
-                styles.fab,
-                isValid ? styles.fabActive : styles.fabDisabled,
-                pressed && isValid && styles.fabPressed,
-              ]}
-              onPress={handleStart}
-              disabled={!isValid}
-            >
-              <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
-                ИНИЦИАЛИЗАЦИЯ
-              </Text>
-            </Pressable>
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
+            <View style={styles.content}>
+              <Animated.View entering={FadeInDown.duration(800).delay(100)} style={styles.panesWrapper}>
+                <PartnerPane
+                  number="01"
+                  name={partner1Name}
+                  gender={partner1Gender}
+                  onNameChange={setPartner1Name}
+                  onGenderChange={setPartner1Gender}
+                />
+                
+                <View style={styles.paneSpacer} />
+
+                <PartnerPane
+                  number="02"
+                  name={partner2Name}
+                  gender={partner2Gender}
+                  onNameChange={setPartner2Name}
+                  onGenderChange={setPartner2Gender}
+                />
+              </Animated.View>
+
+              {/* Action Button */}
+              <Animated.View 
+                entering={FadeIn.duration(600).delay(300)}
+                style={styles.footer}
+              >
+                <Pressable
+                  style={styles.fabPressableArea}
+                  onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
+                  onPressOut={() => { btnPressed.value = withTiming(0, { duration: 300 }) }}
+                  onPress={handleStart}
+                  disabled={!isValid}
+                >
+                  <Animated.View style={[styles.fab, !isValid && styles.fabDisabled, btnStyle]}>
+                    <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
+                      НАЧАТЬ ПОГРУЖЕНИЕ
+                    </Text>
+                  </Animated.View>
+                </Pressable>
+              </Animated.View>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </TouchableWithoutFeedback>
   )
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#000',
   },
   safe: {
     flex: 1,
@@ -221,154 +189,131 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
   },
   backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(0,0,0,0.2)',
   },
-  scroll: {
-    paddingBottom: 140,
+  topLabel: {
+    fontSize: 9,
+    letterSpacing: 4,
+    color: 'rgba(255,255,255,0.3)',
+    textTransform: 'uppercase',
+  },
+  backSpacer: {
+    width: 40,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+    paddingBottom: 24,
+  },
+  panesWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  paneSpacer: {
+    height: 60,
   },
   paneContainer: {
-    flex: 1,
-    minHeight: Dimensions.get('window').height * 0.42,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    overflow: 'hidden',
-  },
-  watermark: {
-    position: 'absolute',
-    top: 60,
-    fontFamily: Platform.OS === 'ios' ? 'Didot' : Fonts.display,
-    fontSize: 200,
-    color: 'rgba(255,255,255,0.02)',
-    fontWeight: '900',
-  },
-  watermarkLeft: {
-    left: -40,
-  },
-  watermarkRight: {
-    right: -40,
-    textAlign: 'right',
-  },
-  paneContent: {
-    zIndex: 1,
+    alignItems: 'center',
   },
   labelRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
   },
-  labelLine: {
-    width: 32,
-    height: 1,
-    backgroundColor: 'rgba(210,46,136,0.5)',
+  numericLabel: {
+    fontFamily: Fonts.display,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.3)',
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
   labelText: {
-    ...Typography.label,
-    color: Colors.accent,
     fontSize: 10,
     letterSpacing: 3,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+    lineHeight: 18,
   },
   nameInput: {
-    fontFamily: Platform.OS === 'ios' ? 'Didot' : Fonts.display,
-    fontSize: 48,
+    fontFamily: Fonts.display,
+    fontSize: 42,
     color: '#ffffff',
-    fontWeight: '300' as const,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.xl,
-    lineHeight: 60,
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 12,
+  },
+  inputUnderline: {
+    height: 1,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 24,
   },
   genderRow: {
     flexDirection: 'row',
-    gap: Spacing.xl,
+    alignItems: 'center',
+    gap: 16,
   },
   genderBtn: {
-    paddingVertical: Spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  genderDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   genderText: {
-    ...Typography.label,
-    fontSize: 11,
+    fontSize: 9,
     letterSpacing: 2,
+    fontWeight: '600',
   },
   genderTextActive: {
     color: '#ffffff',
-    textShadowColor: 'rgba(255,255,255,0.3)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
   },
   genderTextInactive: {
     color: 'rgba(255,255,255,0.3)',
   },
-  activeLine: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+  footer: {
+    width: '100%',
+    paddingTop: 24,
   },
-  divider: {
-    position: 'absolute',
-    bottom: 0,
-    left: Spacing.lg,
-    right: Spacing.lg,
-    height: 1,
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+  fabPressableArea: {
+    width: '100%',
   },
   fab: {
     width: '100%',
-    maxWidth: 400,
-    height: 64,
+    height: 56,
     borderRadius: 999,
+    backgroundColor: '#f5f2ed',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-  },
-  fabActive: {
-    backgroundColor: 'rgba(210,46,136,0.9)',
-    borderColor: Colors.accent,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 40,
-    elevation: 10,
   },
   fabDisabled: {
-    backgroundColor: 'rgba(10,10,10,0.8)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
-  fabPressed: {
-    transform: [{ scale: 0.98 }],
-  },
   fabText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '500' as const,
+    color: '#000000',
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 2,
-    textTransform: 'uppercase',
   },
   fabTextDisabled: {
     color: 'rgba(255,255,255,0.2)',

@@ -105,9 +105,12 @@ function RootNavigator() {
   useEffect(() => {
     if (!splashDone || isLoading) return
     
-    // Always go to main hub, skipping global onboarding
-    router.replace('/(main)')
-  }, [splashDone, isLoading])
+    if (isOnboarded) {
+      router.replace('/(main)')
+    } else {
+      router.replace('/(auth)/onboarding')
+    }
+  }, [splashDone, isLoading, isOnboarded])
 
   if (!splashDone) {
     return <SplashScreen onFinish={() => setSplashDone(true)} />
