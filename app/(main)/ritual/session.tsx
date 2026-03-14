@@ -23,7 +23,6 @@ import {
   GUIDED_TRANSITION_CUES,
 } from '@/constants/guided-session'
 import { ScreenContainer } from '@/components/common/ScreenContainer'
-import { Card } from '@/components/ui/Card'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
 import { RitualCompletionSurface } from '@/components/ritual/RitualCompletionSurface'
@@ -574,16 +573,14 @@ export default function RitualSessionScreen() {
 
   if (phase === 'completion') {
     return (
-      <ScreenContainer background="ritual" safe={false} style={styles.screen}>
-        <View style={styles.fullscreenCenter}>
-          <RitualCompletionSurface
-            title={FINAL_MESSAGE.title}
-            body={FINAL_MESSAGE.body}
-            onRestart={handleRestart}
-            onClose={() => router.replace('/(main)')}
-          />
-        </View>
-      </ScreenContainer>
+      <View style={styles.darkScreen}>
+        <RitualCompletionSurface
+          title={FINAL_MESSAGE.title}
+          body={FINAL_MESSAGE.body}
+          onRestart={handleRestart}
+          onClose={() => router.replace('/(main)')}
+        />
+      </View>
     )
   }
 
