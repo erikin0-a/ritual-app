@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native'
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
-import { Lock } from 'lucide-react-native'
+import { Lock, ChevronRight } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
@@ -74,11 +73,12 @@ function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: 
         <Animated.View style={[styles.rowContainer, !mode.active && styles.rowInactive, pressStyle]}>
           <Image source={mode.image} style={styles.rowImage} resizeMode="cover" />
           <LinearGradient
-            colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
+            colors={['rgba(13,10,15,0.82)', 'rgba(13,10,15,0.96)']}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={StyleSheet.absoluteFill}
           />
+          {mode.active && <View style={styles.activeAccentBar} />}
           
           <View style={styles.rowLeft}>
             <Text style={styles.rowNum}>{mode.num}</Text>
@@ -91,7 +91,7 @@ function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: 
           <View style={styles.rowRight}>
             {mode.active ? (
               <View style={styles.beginIndicator}>
-                <View style={styles.beginLine} />
+                <ChevronRight color="rgba(194,24,91,0.8)" size={18} strokeWidth={1.5} />
               </View>
             ) : (
               <View style={styles.lockCircle}>
@@ -165,7 +165,7 @@ export default function ModesHubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0D0A0F',
   },
   header: {
     paddingHorizontal: 32,
@@ -246,11 +246,15 @@ const styles = StyleSheet.create({
   beginIndicator: {
     width: 32,
     alignItems: 'flex-end',
+    justifyContent: 'center',
   },
-  beginLine: {
-    height: 1,
-    width: 24,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+  activeAccentBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: 'rgba(194,24,91,0.6)',
   },
   lockCircle: {
     width: 32,

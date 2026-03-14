@@ -166,7 +166,7 @@ export default function RitualModeSelectionScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0D0A0F',
   },
   safe: {
     flex: 1,
@@ -239,8 +239,8 @@ const styles = StyleSheet.create({
     padding: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
   premiumHeader: {
     flexDirection: 'row',
@@ -276,13 +276,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   ctaBtn: {
-    backgroundColor: '#f5f2ed',
+    backgroundColor: 'rgba(194,24,91,0.85)',
     paddingVertical: 14,
     borderRadius: 999,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(233,30,140,0.4)',
   },
   ctaText: {
-    color: '#000',
+    color: '#fff',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 2,
