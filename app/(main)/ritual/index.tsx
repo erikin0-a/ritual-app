@@ -145,10 +145,10 @@ export default function RitualModeSelectionScreen() {
                   >
                     <Animated.View style={[styles.freeCardContainer, freeStyle]}>
                       <View>
-                        <Text style={styles.freeTitle}>Essential <Text style={styles.freeDesc}>— Текстовый сценарий</Text></Text>
+                        <Text style={styles.freeTitle}>Simple <Text style={styles.freeDesc}>— Базовый сенсорный опыт</Text></Text>
                       </View>
                       <View style={styles.freeFooter}>
-                        <Text style={styles.freeLink}>ПРОДОЛЖИТЬ</Text>
+                        <Text style={styles.freeLink}>НАЧАТЬ БЕСПЛАТНО</Text>
                         <ArrowRight size={14} color="rgba(255,255,255,0.4)" />
                       </View>
                     </Animated.View>
@@ -252,6 +252,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.display,
     fontSize: 28,
     color: '#fff',
+    fontStyle: 'italic',
   },
   premiumDesc: {
     fontSize: 13,
