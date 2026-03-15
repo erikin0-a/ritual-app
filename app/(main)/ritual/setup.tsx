@@ -16,14 +16,18 @@ import { ArrowRight } from 'lucide-react-native'
 import Animated, {
   FadeIn,
   FadeInDown,
+  FadeOut,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withRepeat,
+  withSequence,
   interpolate,
 } from 'react-native-reanimated'
 import { Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { createRitualParticipants } from '@/lib/ritual-participants'
+import { warmNameAudio } from '@/lib/name-audio-service'
 import type { ParticipantGender, RitualMode } from '@/types'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
 
@@ -85,6 +89,73 @@ function PartnerPane({
   )
 }
 
+// ─── Loading Phase (name audio warmup) ───────────────────────────────────────
+const LOADING_PHASES = [
+  'Приглушаем свет...',
+  'Синхронизируем ритм...',
+  'Подготовка ритуала...',
+]
+
+function LoadingPane() {
+  const [phaseIndex, setPhaseIndex] = useState(0)
+
+  const pulseScale = useSharedValue(0.92)
+  const pulseOpacity = useSharedValue(0.06)
+  const ring1Scale = useSharedValue(1)
+  const ring2Scale = useSharedValue(1)
+  const ring3Scale = useSharedValue(1)
+  const ring1Opacity = useSharedValue(0.3)
+  const ring2Opacity = useSharedValue(0.2)
+  const ring3Opacity = useSharedValue(0.12)
+
+  // Start animations
+  pulseScale.value = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.92, { duration: 2400 })), -1, false)
+  pulseOpacity.value = withRepeat(withSequence(withTiming(0.12, { duration: 2400 }), withTiming(0.04, { duration: 2400 })), -1, false)
+  ring1Scale.value = withRepeat(withSequence(withTiming(1.25, { duration: 2000 }), withTiming(1, { duration: 2000 })), -1, false)
+  ring2Scale.value = withRepeat(withSequence(withTiming(1.4, { duration: 2800 }), withTiming(1, { duration: 2800 })), -1, false)
+  ring3Scale.value = withRepeat(withSequence(withTiming(1.55, { duration: 3600 }), withTiming(1, { duration: 3600 })), -1, false)
+  ring1Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2000 }), withTiming(0.3, { duration: 2000 })), -1, false)
+  ring2Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2800 }), withTiming(0.2, { duration: 2800 })), -1, false)
+  ring3Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 3600 }), withTiming(0.12, { duration: 3600 })), -1, false)
+
+  const coreStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value + 0.9,
+    shadowOpacity: pulseOpacity.value * 4,
+  }))
+  const ring1Style = useAnimatedStyle(() => ({ transform: [{ scale: ring1Scale.value }], opacity: ring1Opacity.value }))
+  const ring2Style = useAnimatedStyle(() => ({ transform: [{ scale: ring2Scale.value }], opacity: ring2Opacity.value }))
+  const ring3Style = useAnimatedStyle(() => ({ transform: [{ scale: ring3Scale.value }], opacity: ring3Opacity.value }))
+
+  const textOpacity = useSharedValue(1)
+  const textStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value }))
+
+  // Cycle loading phase text every 1.5s
+  useState(() => {
+    const interval = setInterval(() => {
+      textOpacity.value = withTiming(0, { duration: 300 }, () => {
+        setPhaseIndex((i) => (i + 1) % LOADING_PHASES.length)
+        textOpacity.value = withTiming(1, { duration: 300 })
+      })
+    }, 1500)
+    return () => clearInterval(interval)
+  })
+
+  return (
+    <Animated.View entering={FadeIn.duration(600)} exiting={FadeOut.duration(400)} style={styles.loadingContainer}>
+      <View style={styles.sphereContainer}>
+        <Animated.View style={[styles.ring, styles.ring3, ring3Style]} />
+        <Animated.View style={[styles.ring, styles.ring2, ring2Style]} />
+        <Animated.View style={[styles.ring, styles.ring1, ring1Style]} />
+        <Animated.View style={[styles.sphereCore, coreStyle]} />
+      </View>
+      <Animated.Text style={[styles.loadingPhaseText, textStyle]}>
+        {LOADING_PHASES[phaseIndex]}
+      </Animated.Text>
+    </Animated.View>
+  )
+}
+
 // ─── Ready Screen (names already in store) ────────────────────────────────────
 function ReadyPane({ p1Name, p2Name }: { p1Name: string; p2Name: string }) {
   return (
@@ -115,17 +186,23 @@ export default function RitualSetupScreen() {
   const [partner2Name, setPartner2Name] = useState(storedParticipants.p2.name)
   const [partner1Gender, setPartner1Gender] = useState<ParticipantGender>(storedParticipants.p1.gender)
   const [partner2Gender, setPartner2Gender] = useState<ParticipantGender>(storedParticipants.p2.gender)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleStart = () => {
-    if (!hasStoredNames) {
-      // Save fallback-entered names to store
-      setRitualParticipants(
-        createRitualParticipants({
-          p1: { id: 'p1', name: partner1Name.trim(), gender: partner1Gender },
-          p2: { id: 'p2', name: partner2Name.trim(), gender: partner2Gender },
-        }),
-      )
-    }
+  const handleStart = async () => {
+    const participants = hasStoredNames
+      ? storedParticipants
+      : (() => {
+          const created = createRitualParticipants({
+            p1: { id: 'p1', name: partner1Name.trim(), gender: partner1Gender },
+            p2: { id: 'p2', name: partner2Name.trim(), gender: partner2Gender },
+          })
+          setRitualParticipants(created)
+          return created
+        })()
+
+    setIsLoading(true)
+    // Pre-warm name audio; swallow errors — session works without it
+    await warmNameAudio(participants).catch(() => null)
     router.push({ pathname: '/(main)/ritual/session', params: { mode } })
   }
 
@@ -157,7 +234,9 @@ export default function RitualSetupScreen() {
           </Animated.View>
 
           <View style={styles.content}>
-            {hasStoredNames ? (
+            {isLoading ? (
+              <LoadingPane />
+            ) : hasStoredNames ? (
               <View style={styles.panesWrapper}>
                 <ReadyPane p1Name={storedParticipants.p1.name} p2Name={storedParticipants.p2.name} />
               </View>
@@ -181,22 +260,24 @@ export default function RitualSetupScreen() {
               </Animated.View>
             )}
 
-            {/* Action Button */}
-            <Animated.View entering={FadeIn.duration(600).delay(300)} style={styles.footer}>
-              <Pressable
-                style={styles.fabPressableArea}
-                onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
-                onPressOut={() => { btnPressed.value = withTiming(0, { duration: 300 }) }}
-                onPress={handleStart}
-                disabled={!isValid}
-              >
-                <Animated.View style={[styles.fab, !isValid && styles.fabDisabled, btnStyle]}>
-                  <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
-                    НАЧАТЬ ПОГРУЖЕНИЕ
-                  </Text>
-                </Animated.View>
-              </Pressable>
-            </Animated.View>
+            {/* Action Button — hidden during loading */}
+            {!isLoading && (
+              <Animated.View entering={FadeIn.duration(600).delay(300)} style={styles.footer}>
+                <Pressable
+                  style={styles.fabPressableArea}
+                  onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
+                  onPressOut={() => { btnPressed.value = withTiming(0, { duration: 300 }) }}
+                  onPress={handleStart}
+                  disabled={!isValid}
+                >
+                  <Animated.View style={[styles.fab, !isValid && styles.fabDisabled, btnStyle]}>
+                    <Text style={[styles.fabText, !isValid && styles.fabTextDisabled]}>
+                      НАЧАТЬ ПОГРУЖЕНИЕ
+                    </Text>
+                  </Animated.View>
+                </Pressable>
+              </Animated.View>
+            )}
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -356,6 +437,56 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.5,
     color: 'rgba(255,255,255,0.2)',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+
+  // ─── Loading phase ────────────────────────────────────────────────────────
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 48,
+  },
+  sphereContainer: {
+    width: 160,
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sphereCore: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    shadowColor: '#C2185B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 40,
+    shadowOpacity: 0.5,
+  },
+  ring: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(194,24,91,0.4)',
+  },
+  ring1: {
+    width: 110,
+    height: 110,
+  },
+  ring2: {
+    width: 140,
+    height: 140,
+  },
+  ring3: {
+    width: 160,
+    height: 160,
+  },
+  loadingPhaseText: {
+    fontSize: 12,
+    letterSpacing: 2,
+    color: 'rgba(255,255,255,0.35)',
     textTransform: 'uppercase',
     textAlign: 'center',
   },
