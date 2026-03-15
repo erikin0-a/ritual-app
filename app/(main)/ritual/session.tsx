@@ -26,7 +26,6 @@ import { ScreenContainer } from '@/components/common/ScreenContainer'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import { CircularTimer } from '@/components/ritual/CircularTimer'
 import { RitualCompletionSurface } from '@/components/ritual/RitualCompletionSurface'
-import { RitualConsentGate } from '@/components/ritual/RitualConsentGate'
 import { RitualIntro } from '@/components/ritual/RitualIntro'
 import { RitualParticipantChips } from '@/components/ritual/RitualParticipantChips'
 import { RitualSetupOverlay } from '@/components/ritual/RitualSetupOverlay'
@@ -38,7 +37,7 @@ import { useAudioStore } from '@/stores/audio.store'
 import { useRitualStore } from '@/stores/ritual.store'
 import type { GuidedBranch, RitualMode, RoundId } from '@/types'
 
-type SessionPhase = 'prelude' | 'consent' | 'transition' | 'setup' | 'roundPlayback' | 'completion' | 'loading'
+type SessionPhase = 'prelude' | 'transition' | 'setup' | 'roundPlayback' | 'completion' | 'loading'
 
 function DimmingOrb({ pct }: { pct: number }) {
   const scale = useSharedValue(1)
@@ -256,7 +255,7 @@ export default function RitualSessionScreen() {
     setVoiceStartTime(null)
     setConsentCompleted(false)
     setPhase('loading')
-  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, resolvedMode, stopAudio])
+  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, stopAudio])
 
   useEffect(() => {
     let mounted = true
@@ -556,17 +555,6 @@ export default function RitualSessionScreen() {
     return (
       <View style={styles.darkScreen}>
         <DimmingOrb pct={preloadBlend} />
-      </View>
-    )
-  }
-
-  if (phase === 'consent') {
-    return (
-      <View style={styles.darkScreen}>
-        <Animated.View entering={FadeIn.duration(700)} exiting={FadeOut.duration(400)} style={styles.consentWrap}>
-          <RitualConsentGate participants={ritualParticipants} onComplete={handleConsentComplete} />
-        </Animated.View>
-        <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />
       </View>
     )
   }
@@ -902,9 +890,6 @@ const styles = StyleSheet.create({
   darkScreen: {
     flex: 1,
     backgroundColor: Colors.backgroundCanvas,
-  },
-  consentWrap: {
-    flex: 1,
   },
 })
 
