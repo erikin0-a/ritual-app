@@ -45,7 +45,7 @@ const modes = [
   },
 ]
 
-function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: number, router: any }) {
+function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: number, router: ReturnType<typeof useRouter> }) {
   const isPressed = useSharedValue(0)
   
   const pressStyle = useAnimatedStyle(() => ({
@@ -65,7 +65,7 @@ function StrictModeRow({ mode, index, router }: { mode: typeof modes[0], index: 
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
           if (mode.active) {
-            router.push(`/(main)/${mode.id}`)
+            router.push(`/(main)/${mode.id}` as never)
           }
         }}
         disabled={!mode.active}
@@ -114,7 +114,7 @@ export default function ModesHubScreen() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1500)
+    const timer = setTimeout(() => setIsLoading(false), 500)
     return () => clearTimeout(timer)
   }, [])
 
