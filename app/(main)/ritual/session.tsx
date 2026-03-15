@@ -105,6 +105,38 @@ function DimmingOrb({ pct }: { pct: number }) {
   )
 }
 
+function ActiveDot() {
+  const scale = useSharedValue(1)
+  const shadowOpacity = useSharedValue(0.55)
+
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.25, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    shadowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.3, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    shadowOpacity: shadowOpacity.value,
+  }))
+
+  return <Animated.View style={[styles.progressDot, styles.progressDotCurrent, animStyle]} />
+}
+
 function RoundProgressDots({
   currentRound,
   completedRounds,
@@ -114,16 +146,18 @@ function RoundProgressDots({
 }) {
   return (
     <View style={styles.progressRow}>
-      {([1, 2, 3, 4, 5] as RoundId[]).map((id) => (
-        <View
-          key={id}
-          style={[
-            styles.progressDot,
-            completedRounds.includes(id) && styles.progressDotDone,
-            currentRound === id && styles.progressDotCurrent,
-          ]}
-        />
-      ))}
+      {([1, 2, 3, 4, 5] as RoundId[]).map((id) => {
+        if (currentRound === id) return <ActiveDot key={id} />
+        return (
+          <View
+            key={id}
+            style={[
+              styles.progressDot,
+              completedRounds.includes(id) && styles.progressDotDone,
+            ]}
+          />
+        )
+      })}
     </View>
   )
 }
@@ -750,6 +784,9 @@ const styles = StyleSheet.create({
     width: 28,
     backgroundColor: Colors.accent,
     borderColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
   headerLabel: {
     ...Typography.label,
