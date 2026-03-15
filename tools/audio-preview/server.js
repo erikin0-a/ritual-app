@@ -23,7 +23,7 @@ const ELEVENLABS_API_KEY = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY
 const VOICE_ID = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID
 const MODEL_ID = process.env.EXPO_PUBLIC_ELEVENLABS_MODEL_ID || 'eleven_v3'
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
-const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
 const BUCKET = process.env.EXPO_PUBLIC_GUIDED_AUDIO_BUCKET || 'guided-audio'
 const PHRASE_PREFIX = process.env.EXPO_PUBLIC_GUIDED_AUDIO_PHRASE_PREFIX || 'guided-phrases'
 const VOICE_PROFILE = process.env.EXPO_PUBLIC_GUIDED_AUDIO_VOICE_PROFILE || 'marusya-romantic-v1'
@@ -68,7 +68,7 @@ function sanitizeForStorage(value) {
 }
 
 function buildStoragePath(text) {
-  const clean = text.trim()
+  const clean = stripSsml(text.trim())
   const key = sanitizeForStorage(clean)
   return `${PHRASE_PREFIX}/${VOICE_PROFILE}/${key}-${fastHash(clean)}.mp3`
 }

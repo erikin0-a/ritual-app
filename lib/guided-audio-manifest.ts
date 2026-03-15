@@ -86,8 +86,9 @@ function buildParticipantsCacheKey(participants: RitualParticipants): string {
 
 function buildPhraseStoragePath(segmentText: string): string {
   const normalizedText = segmentText.trim()
+  const strippedText = stripSsml(normalizedText)
   const segmentKey = sanitizeTextForStorage(normalizedText)
-  return `${GUIDED_AUDIO_PHRASE_PREFIX}/${GUIDED_AUDIO_VOICE_PROFILE}/${segmentKey}-${fastHash(normalizedText)}.mp3`
+  return `${GUIDED_AUDIO_PHRASE_PREFIX}/${GUIDED_AUDIO_VOICE_PROFILE}/${segmentKey}-${fastHash(strippedText)}.mp3`
 }
 
 function buildNameStoragePath(participantId: ParticipantId, participants: RitualParticipants): string {

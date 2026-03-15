@@ -198,13 +198,15 @@ function loadCatalog() {
     } else {
       const trimmed = line.trim()
       if (trimmed.endsWith("',")) {
-        currentValue += ' ' + trimmed.slice(0, -2)
+        const chunk = trimmed.slice(0, -2).replace(/^'/, '')
+        currentValue += currentValue ? ' ' + chunk : chunk
         catalog[currentKey] = currentValue.trim()
         currentKey = null
         currentValue = ''
         inValue = false
       } else {
-        currentValue += ' ' + trimmed
+        const chunk = trimmed.replace(/^'/, '')
+        currentValue += currentValue ? ' ' + chunk : chunk
       }
     }
   }
