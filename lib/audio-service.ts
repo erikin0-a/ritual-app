@@ -11,6 +11,7 @@ import * as FileSystem from 'expo-file-system'
 import { VOICE_SCRIPT_CATALOG } from '@/constants/voice-script-catalog'
 import { clearGuidedCueManifestCache, resolveGuidedCueManifest } from '@/lib/guided-audio-manifest'
 import { DEFAULT_RITUAL_PARTICIPANTS } from '@/lib/ritual-participants'
+import { ensureNameAudioAtPath } from '@/lib/name-audio-service'
 import type { GuidedAudioSegment, GuidedCueManifest, GuidedPreloadItem, ParticipantId, RitualParticipants } from '@/types'
 
 const MUSIC_VOLUME = 0.3
@@ -198,7 +199,28 @@ async function resolveSegmentPlaybackUri(segment: GuidedAudioSegment): Promise<s
       }
       return cachedUri
     } catch {
-      // Fall through to synthesis for development-time resilience.
+      // Fall through to name-service or local synthesis.
+    }
+  }
+
+  // For name segments: synthesize via edge function and persist to Supabase
+  // so subsequent plays hit storage instead of re-synthesizing every time.
+  if (segment.kind === 'name' && segment.storagePath) {
+    try {
+      const nameUri = await ensureNameAudioAtPath(segment.text, segment.storagePath)
+      if (nameUri) {
+        const cachedUri = await cacheRemoteUri(nameUri)
+        await loadSound(cachedUri)
+        if (__DEV__) {
+          console.log('[GuidedAudio] Name audio resolved via name-audio-service', {
+            cacheKey: segment.cacheKey,
+            storagePath: segment.storagePath,
+          })
+        }
+        return cachedUri
+      }
+    } catch {
+      // Fall through to local synthesis.
     }
   }
 

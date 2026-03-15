@@ -12,7 +12,7 @@ import type { ParticipantId, RitualParticipants } from '@/types'
 const BUCKET = process.env.EXPO_PUBLIC_GUIDED_AUDIO_BUCKET ?? 'guided-audio'
 const VOICE_PROFILE = process.env.EXPO_PUBLIC_GUIDED_AUDIO_VOICE_PROFILE ?? 'marusya-romantic-v1'
 const NAME_PREFIX = process.env.EXPO_PUBLIC_GUIDED_AUDIO_NAME_PREFIX ?? 'name-library'
-const FUNCTION_NAME = process.env.EXPO_PUBLIC_GUIDED_AUDIO_FUNCTION_NAME ?? 'guided-audio-resolver'
+const PRIME_FUNCTION_NAME = process.env.EXPO_PUBLIC_GUIDED_AUDIO_PRIME_FUNCTION_NAME ?? 'guided-audio-prime'
 const CACHE_PREFIX = '@name_audio_url:'
 
 function buildNameStoragePath(name: string, gender: string): string {
@@ -39,30 +39,21 @@ async function objectExists(storagePath: string): Promise<boolean> {
 }
 
 async function synthesizeNameViaEdgeFunction(
-  participantId: ParticipantId,
-  participants: RitualParticipants,
+  name: string,
   storagePath: string,
 ): Promise<string | null> {
   try {
-    const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
+    const { data, error } = await supabase.functions.invoke(PRIME_FUNCTION_NAME, {
       body: {
-        cueKey: `__name_warmup_${participantId}`,
         bucket: BUCKET,
-        participants,
-        segments: [
-          {
-            cacheKey: storagePath,
-            kind: 'name',
-            text: participants[participantId].name,
-            storagePath,
-            participantId,
-          },
-        ],
+        segments: [{ text: name, storagePath }],
       },
     })
     if (error) return null
-    const resolved = (data as { segments?: Array<{ uri?: string }> } | null)?.segments?.[0]
-    return resolved?.uri ?? null
+    const uploaded = (data as { uploaded?: Array<{ uri?: string }> } | null)?.uploaded
+    if (uploaded && uploaded.length > 0) return uploaded[0].uri ?? null
+    // File was already uploaded (returned in skipped) — derive public URL locally
+    return getPublicUrl(storagePath)
   } catch {
     return null
   }
@@ -95,7 +86,39 @@ export async function ensureNameAudio(
     return url
   }
 
-  const url = await synthesizeNameViaEdgeFunction(participantId, participants, storagePath)
+  const url = await synthesizeNameViaEdgeFunction(participant.name, storagePath)
+  if (url) {
+    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
+  }
+  return url
+}
+
+/**
+ * Ensures name audio exists at a known storagePath.
+ * Use this in audio-service when you already have the path (from a GuidedAudioSegment)
+ * and just need to guarantee the file is synthesized if missing.
+ */
+export async function ensureNameAudioAtPath(
+  name: string,
+  storagePath: string,
+): Promise<string | null> {
+  const asyncStorageKey = `${CACHE_PREFIX}${storagePath}`
+
+  try {
+    const cached = await AsyncStorage.getItem(asyncStorageKey)
+    if (cached) return cached
+  } catch {
+    // Cache miss — proceed
+  }
+
+  const exists = await objectExists(storagePath)
+  if (exists) {
+    const url = getPublicUrl(storagePath)
+    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
+    return url
+  }
+
+  const url = await synthesizeNameViaEdgeFunction(name, storagePath)
   if (url) {
     AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
   }
