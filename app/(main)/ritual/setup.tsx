@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import Animated, {
   withSequence,
   interpolate,
 } from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
 import { Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { createRitualParticipants } from '@/lib/ritual-participants'
@@ -107,16 +108,19 @@ function LoadingPane() {
   const ring1Opacity = useSharedValue(0.3)
   const ring2Opacity = useSharedValue(0.2)
   const ring3Opacity = useSharedValue(0.12)
+  const textOpacity = useSharedValue(1)
 
-  // Start animations
-  pulseScale.value = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.92, { duration: 2400 })), -1, false)
-  pulseOpacity.value = withRepeat(withSequence(withTiming(0.12, { duration: 2400 }), withTiming(0.04, { duration: 2400 })), -1, false)
-  ring1Scale.value = withRepeat(withSequence(withTiming(1.25, { duration: 2000 }), withTiming(1, { duration: 2000 })), -1, false)
-  ring2Scale.value = withRepeat(withSequence(withTiming(1.4, { duration: 2800 }), withTiming(1, { duration: 2800 })), -1, false)
-  ring3Scale.value = withRepeat(withSequence(withTiming(1.55, { duration: 3600 }), withTiming(1, { duration: 3600 })), -1, false)
-  ring1Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2000 }), withTiming(0.3, { duration: 2000 })), -1, false)
-  ring2Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2800 }), withTiming(0.2, { duration: 2800 })), -1, false)
-  ring3Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 3600 }), withTiming(0.12, { duration: 3600 })), -1, false)
+  useEffect(() => {
+    pulseScale.value = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.92, { duration: 2400 })), -1, false)
+    pulseOpacity.value = withRepeat(withSequence(withTiming(0.12, { duration: 2400 }), withTiming(0.04, { duration: 2400 })), -1, false)
+    ring1Scale.value = withRepeat(withSequence(withTiming(1.25, { duration: 2000 }), withTiming(1, { duration: 2000 })), -1, false)
+    ring2Scale.value = withRepeat(withSequence(withTiming(1.4, { duration: 2800 }), withTiming(1, { duration: 2800 })), -1, false)
+    ring3Scale.value = withRepeat(withSequence(withTiming(1.55, { duration: 3600 }), withTiming(1, { duration: 3600 })), -1, false)
+    ring1Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2000 }), withTiming(0.3, { duration: 2000 })), -1, false)
+    ring2Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 2800 }), withTiming(0.2, { duration: 2800 })), -1, false)
+    ring3Opacity.value = withRepeat(withSequence(withTiming(0.0, { duration: 3600 }), withTiming(0.12, { duration: 3600 })), -1, false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const coreStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -127,11 +131,10 @@ function LoadingPane() {
   const ring2Style = useAnimatedStyle(() => ({ transform: [{ scale: ring2Scale.value }], opacity: ring2Opacity.value }))
   const ring3Style = useAnimatedStyle(() => ({ transform: [{ scale: ring3Scale.value }], opacity: ring3Opacity.value }))
 
-  const textOpacity = useSharedValue(1)
   const textStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value }))
 
   // Cycle loading phase text every 1.5s
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       textOpacity.value = withTiming(0, { duration: 300 }, () => {
         setPhaseIndex((i) => (i + 1) % LOADING_PHASES.length)
@@ -139,7 +142,8 @@ function LoadingPane() {
       })
     }, 1500)
     return () => clearInterval(interval)
-  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Animated.View entering={FadeIn.duration(600)} exiting={FadeOut.duration(400)} style={styles.loadingContainer}>
@@ -203,6 +207,8 @@ export default function RitualSetupScreen() {
     setIsLoading(true)
     // Pre-warm name audio; swallow errors — session works without it
     await warmNameAudio(participants).catch(() => null)
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
+    await new Promise<void>((resolve) => setTimeout(resolve, 800))
     router.push({ pathname: '/(main)/ritual/session', params: { mode } })
   }
 
