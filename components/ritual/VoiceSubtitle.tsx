@@ -18,6 +18,27 @@ interface VoiceSubtitleProps {
 
 const USE_NATIVE_DRIVER = Platform.OS !== 'web'
 
+function HighlightedSubtitle({ text, names }: { text: string; names: string[] }) {
+  if (names.length === 0) {
+    return <Text style={styles.subtitleText}>{text}</Text>
+  }
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'gi')
+  const parts = text.split(pattern)
+  const nameSet = new Set(names.map((n) => n.toLowerCase()))
+  return (
+    <Text style={styles.subtitleText}>
+      {parts.map((part, i) =>
+        nameSet.has(part.toLowerCase()) ? (
+          <Text key={i} style={styles.subtitleName}>{part}</Text>
+        ) : (
+          part
+        ),
+      )}
+    </Text>
+  )
+}
+
 export function VoiceSubtitle({ cue, participants }: VoiceSubtitleProps) {
   const insets = useSafeAreaInsets()
   const opacity = useRef(new Animated.Value(0)).current
@@ -83,7 +104,10 @@ export function VoiceSubtitle({ cue, participants }: VoiceSubtitleProps) {
       ) : null}
       {interpolatedSubtitle ? (
         <View style={styles.bubble}>
-          <Text style={styles.subtitleText}>{interpolatedSubtitle}</Text>
+          <HighlightedSubtitle
+            text={interpolatedSubtitle}
+            names={[participants.p1.name, participants.p2.name]}
+          />
         </View>
       ) : null}
     </Animated.View>
@@ -133,5 +157,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: 'center',
     color: Colors.text,
+  },
+  subtitleName: {
+    color: Colors.accent,
+    fontWeight: '700',
   },
 })
