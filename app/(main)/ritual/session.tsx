@@ -666,6 +666,7 @@ export default function RitualSessionScreen() {
         <View style={styles.roundNameArea}>
           <Text style={styles.roundEyebrow}>{roundScene.title}</Text>
           <Text style={styles.roundTitle}>{roundScene.titleShort}</Text>
+          <Text style={styles.roundHint}>{roundScene.timerHint}</Text>
         </View>
 
         {/* ── Timer (main focus) ── */}
@@ -816,6 +817,15 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: Colors.text,
     letterSpacing: -0.3,
+  },
+  roundHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.28)',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '300',
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
   timerArea: {
     alignItems: 'center',
