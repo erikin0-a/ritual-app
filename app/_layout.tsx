@@ -5,16 +5,22 @@ import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
   withSequence,
   withDelay,
   Easing,
   runOnJS
 } from 'react-native-reanimated'
+import {
+  useFonts,
+  PlayfairDisplay_400Regular,
+  PlayfairDisplay_400Regular_Italic,
+  PlayfairDisplay_700Bold,
+} from '@expo-google-fonts/playfair-display'
 import { initAnalytics } from '@/lib/analytics'
 import { initRevenueCat } from '@/lib/revenuecat'
 import { Colors } from '@/constants/theme'
@@ -95,6 +101,11 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
 function RootNavigator() {
   const { isLoading, isOnboarded, hydrate } = useAuthStore()
   const [splashDone, setSplashDone] = useState(false)
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_400Regular_Italic,
+    PlayfairDisplay_700Bold,
+  })
 
   useEffect(() => {
     initAnalytics()
@@ -103,16 +114,16 @@ function RootNavigator() {
   }, [])
 
   useEffect(() => {
-    if (!splashDone || isLoading) return
-    
+    if (!splashDone || isLoading || !fontsLoaded) return
+
     if (isOnboarded) {
       router.replace('/(main)')
     } else {
       router.replace('/(auth)/onboarding')
     }
-  }, [splashDone, isLoading, isOnboarded])
+  }, [splashDone, isLoading, isOnboarded, fontsLoaded])
 
-  if (!splashDone) {
+  if (!splashDone || !fontsLoaded) {
     return <SplashScreen onFinish={() => setSplashDone(true)} />
   }
 

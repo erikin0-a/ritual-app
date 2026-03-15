@@ -1,7 +1,7 @@
-import { Platform } from 'react-native'
-
 export const Fonts = {
-  display: Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, serif' }) ?? 'Georgia',
+  display: 'PlayfairDisplay_400Regular',
+  displayBold: 'PlayfairDisplay_700Bold',
+  displayItalic: 'PlayfairDisplay_400Regular_Italic',
 } as const
 
 export const Colors = {
