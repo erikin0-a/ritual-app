@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native'
+import { View, Text, StyleSheet, Pressable, Image, Dimensions } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Lock, ChevronRight } from 'lucide-react-native'
@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedScrollHandler,
   interpolate,
   interpolateColor,
   FadeInDown,
@@ -112,21 +113,36 @@ export default function ModesHubScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [isLoading, setIsLoading] = useState(true)
+  const scrollY = useSharedValue(0)
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500)
     return () => clearTimeout(timer)
   }, [])
 
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y
+  })
+
+  const headerBgStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(13,10,15,${interpolate(scrollY.value, [0, 80], [0, 0.85], 'clamp')})`,
+  }))
+
+  const headerHeight = insets.top + 100
+
   return (
     <View style={styles.container}>
       <LiquidBackground />
 
-      <Animated.View entering={FadeIn.duration(1200)} style={[styles.header, { paddingTop: insets.top + 24 }]}>
+      {/* Floating header — fixed over ScrollView */}
+      <Animated.View
+        entering={FadeIn.duration(1200)}
+        style={[styles.header, { paddingTop: insets.top + 24, height: headerHeight }, headerBgStyle]}
+      >
         {isLoading ? (
           <View style={{ gap: 16 }}>
-             <Skeleton style={{ width: 100, height: 10 }} />
-             <Skeleton style={{ width: 220, height: 40 }} />
+            <Skeleton style={{ width: 100, height: 10 }} />
+            <Skeleton style={{ width: 220, height: 40 }} />
           </View>
         ) : (
           <View>
@@ -138,26 +154,31 @@ export default function ModesHubScreen() {
         )}
       </Animated.View>
 
-      <View style={styles.listContainer}>
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight }]}
+      >
         {isLoading ? (
-          <View style={{ gap: 32, marginTop: 40 }}>
+          <View style={{ gap: 32, paddingHorizontal: 24, marginTop: 40 }}>
             <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
             <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
             <Skeleton style={{ width: '100%', height: 80, borderRadius: 0 }} />
           </View>
         ) : (
-          <View style={styles.menuWrapper}>
+          <View style={[styles.menuWrapper, { paddingHorizontal: 24 }]}>
             {modes.map((mode, idx) => (
-              <StrictModeRow 
-                key={mode.id} 
-                mode={mode} 
-                index={idx} 
-                router={router} 
+              <StrictModeRow
+                key={mode.id}
+                mode={mode}
+                index={idx}
+                router={router}
               />
             ))}
           </View>
         )}
-      </View>
+      </Animated.ScrollView>
     </View>
   )
 }
@@ -168,9 +189,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D0A0F',
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 32,
     zIndex: 30,
-    width: '100%',
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
   },
   subtitle: {
     color: 'rgba(255,255,255,0.3)',
@@ -190,10 +216,10 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     color: 'rgba(255,255,255,0.6)',
   },
-  listContainer: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   menuWrapper: {
     gap: 0,
