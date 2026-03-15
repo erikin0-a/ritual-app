@@ -344,10 +344,10 @@ app.post('/api/regenerate', async (req, res) => {
     for (const seg of phraseSegments) {
       const clean = stripSsml(seg)
       if (clean.length < 3) continue
-      const storagePath = buildStoragePath(clean)
+      const storagePath = buildStoragePath(seg)
 
       console.log(`  Generating: "${clean.slice(0, 50)}..."`)
-      const audio = await generateTTS(clean)
+      const audio = await generateTTS(seg)
       await uploadToSupabase(storagePath, audio)
       results.push({ segment: clean, storagePath, url: getSupabasePublicUrl(storagePath) })
     }
@@ -385,10 +385,9 @@ app.get('/api/check-audio/:key', async (req, res) => {
 
     const checks = await Promise.all(
       phraseSegments.map(async seg => {
-        const clean = stripSsml(seg)
-        const storagePath = buildStoragePath(clean)
+        const storagePath = buildStoragePath(seg)
         const exists = await checkSupabaseExists(storagePath)
-        return { segment: clean.slice(0, 40), storagePath, exists }
+        return { segment: stripSsml(seg).slice(0, 40), storagePath, exists }
       })
     )
 
