@@ -24,13 +24,20 @@ interface LiquidBackgroundProps {
 
 /**
  * LiquidBackground
- * Animated dark canvas with a breathing warm-rose blob.
+ * Animated dark canvas with a breathing warm-rose blob that also drifts
+ * slowly across the canvas for a liquid, silk-like feel.
  * The `intensity` prop scales the blob opacity — use it to signal
  * escalating tension across ritual rounds.
  */
 export const LiquidBackground = ({ intensity = 0.4 }: LiquidBackgroundProps) => {
   const pulseScale = useSharedValue(1)
   const pulseOpacity = useSharedValue(intensity * 0.6)
+  // Primary blob drift
+  const driftX = useSharedValue(0)
+  const driftY = useSharedValue(0)
+  // Secondary blob counter-drift
+  const drift2X = useSharedValue(0)
+  const drift2Y = useSharedValue(0)
 
   // Slow breathing scale (same for all intensities)
   useEffect(() => {
@@ -60,15 +67,61 @@ export const LiquidBackground = ({ intensity = 0.4 }: LiquidBackgroundProps) => 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intensity])
 
+  // Primary blob slow drift — different period for X and Y so motion never repeats exactly
+  useEffect(() => {
+    driftX.value = withRepeat(
+      withSequence(
+        withTiming(28, { duration: 11000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(-28, { duration: 11000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    driftY.value = withRepeat(
+      withSequence(
+        withTiming(-24, { duration: 14500, easing: Easing.inOut(Easing.sin) }),
+        withTiming(24, { duration: 14500, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    // Secondary blob drifts in the opposite phase
+    drift2X.value = withRepeat(
+      withSequence(
+        withTiming(-22, { duration: 9800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(22, { duration: 9800, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    drift2Y.value = withRepeat(
+      withSequence(
+        withTiming(18, { duration: 12600, easing: Easing.inOut(Easing.sin) }),
+        withTiming(-18, { duration: 12600, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const blobStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
+    transform: [
+      { translateX: driftX.value },
+      { translateY: driftY.value },
+      { scale: pulseScale.value },
+    ],
     opacity: pulseOpacity.value,
   }))
 
   // Second smaller blob offset for richer depth at higher intensities
   const secondBlobOpacity = intensity > 0.5 ? intensity * 0.25 : 0
   const secondBlobStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + (1 - pulseScale.value) * 0.4 }],
+    transform: [
+      { translateX: drift2X.value },
+      { translateY: drift2Y.value },
+      { scale: 1 + (1 - pulseScale.value) * 0.4 },
+    ],
     opacity: secondBlobOpacity * pulseOpacity.value,
   }))
 
