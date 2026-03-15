@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import Animated, {
   withTiming,
   withSequence,
   withSpring,
+  Easing,
+  runOnJS,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 import { Colors, Fonts, BorderRadius, Spacing } from '@/constants/theme'
@@ -33,6 +35,47 @@ import type { ParticipantGender } from '@/types'
 import { createRitualParticipants } from '@/lib/ritual-participants'
 
 const { height, width } = Dimensions.get('window')
+
+const ONBOARDING_PHRASES = [
+  'Пространство для двоих',
+  'Глубина без слов',
+  'Ваш личный ритуал',
+  'Здесь начинается близость',
+]
+
+// ─── Cycling Phrase ───────────────────────────────────────────────────────────
+function CyclingPhrase() {
+  const [index, setIndex] = useState(0)
+  const opacity = useSharedValue(1)
+  const translateY = useSharedValue(0)
+
+  const advance = useCallback(() => {
+    opacity.value = withTiming(0, { duration: 600, easing: Easing.in(Easing.ease) }, (done) => {
+      if (!done) return
+      translateY.value = 10
+      runOnJS(setIndex)((prev) => (prev + 1) % ONBOARDING_PHRASES.length)
+      opacity.value = withTiming(1, { duration: 750, easing: Easing.out(Easing.ease) })
+      translateY.value = withTiming(0, { duration: 750, easing: Easing.out(Easing.cubic) })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(advance, 4000)
+    return () => clearInterval(timer)
+  }, [advance])
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }))
+
+  return (
+    <Animated.Text style={[styles.cyclingPhrase, animStyle]}>
+      {ONBOARDING_PHRASES[index]}
+    </Animated.Text>
+  )
+}
 
 type Step = 'age' | 'names'
 
@@ -150,6 +193,9 @@ function AgeGateScreen({ onConfirm, onReject }: { onConfirm: () => void; onRejec
         <Text style={styles.brandTitle}>
           Ritual <Text style={styles.brandItalic}>depth</Text>
         </Text>
+        <Animated.View entering={FadeIn.duration(1200).delay(800)} style={styles.phraseContainer}>
+          <CyclingPhrase />
+        </Animated.View>
       </Animated.View>
 
       <Animated.View entering={FadeIn.duration(1000).delay(600)} style={styles.messageBox}>
@@ -378,6 +424,19 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontWeight: '300',
     color: 'rgba(255,255,255,0.5)',
+  },
+  phraseContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+    minHeight: 20,
+  },
+  cyclingPhrase: {
+    fontSize: 11,
+    letterSpacing: 2.5,
+    color: 'rgba(255,255,255,0.28)',
+    textTransform: 'uppercase',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   messageBox: {
     alignItems: 'center',
