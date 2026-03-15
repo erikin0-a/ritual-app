@@ -83,6 +83,7 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
         styles.introText,
         displayedItem.style === 'large' && styles.introTextLarge,
         displayedItem.style === 'italic' && styles.introTextItalic,
+        displayedItem.style === 'accent' && styles.introTextAccent,
         animStyle,
       ]}>
         {displayedItem.text}
@@ -226,5 +227,9 @@ const styles = StyleSheet.create({
   introTextItalic: {
     fontStyle: 'italic',
     fontWeight: '600',
+  },
+  introTextAccent: {
+    color: '#E91E8C',
+    fontWeight: '700',
   },
 })

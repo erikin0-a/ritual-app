@@ -56,6 +56,10 @@ export function VoiceSubtitle({ cue, participants }: VoiceSubtitleProps) {
 
   const highlightedParticipants = cue?.highlightedParticipants?.map((participantId) => participants[participantId]) ?? []
 
+  const interpolatedSubtitle = cue?.subtitle
+    ?.replace(/\{\{p1\.name\}\}/g, participants.p1.name)
+    ?.replace(/\{\{p2\.name\}\}/g, participants.p2.name)
+
   return (
     <Animated.View
       style={[
@@ -77,9 +81,9 @@ export function VoiceSubtitle({ cue, participants }: VoiceSubtitleProps) {
           ))}
         </View>
       ) : null}
-      {cue?.subtitle ? (
+      {interpolatedSubtitle ? (
         <View style={styles.bubble}>
-          <Text style={styles.subtitleText}>{cue.subtitle}</Text>
+          <Text style={styles.subtitleText}>{interpolatedSubtitle}</Text>
         </View>
       ) : null}
     </Animated.View>
