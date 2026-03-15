@@ -47,3 +47,19 @@ yarn-error.*
 
 expo-env.d.ts
 # @end expo-cli
+
+# Local audio cache (pre-generated phrases)
+.phrase-cache/
+
+# Dev tools node_modules
+tools/*/node_modules/
+
+# Ralph AI agent config
+.ralph/
+.ralphrc
+
+# Screenshot scripts
+take_screenshots.js
+
+# Generated UI examples
+ui-example-generated/
