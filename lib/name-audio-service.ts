@@ -24,20 +24,6 @@ function getPublicUrl(storagePath: string): string {
   return supabase.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl
 }
 
-async function objectExists(storagePath: string): Promise<boolean> {
-  try {
-    const pathParts = storagePath.split('/')
-    const fileName = pathParts.pop()
-    const folder = pathParts.join('/')
-    if (!fileName) return false
-    const { data, error } = await supabase.storage.from(BUCKET).list(folder, { search: fileName })
-    if (error) return false
-    return Boolean(data?.some((entry) => entry.name === fileName))
-  } catch {
-    return false
-  }
-}
-
 async function synthesizeNameViaEdgeFunction(
   name: string,
   storagePath: string,
@@ -52,7 +38,7 @@ async function synthesizeNameViaEdgeFunction(
     if (error) return null
     const uploaded = (data as { uploaded?: Array<{ uri?: string }> } | null)?.uploaded
     if (uploaded && uploaded.length > 0) return uploaded[0].uri ?? null
-    // File was already uploaded (returned in skipped) — derive public URL locally
+    // File already existed (returned in skipped) — derive public URL locally
     return getPublicUrl(storagePath)
   } catch {
     return null
@@ -60,69 +46,33 @@ async function synthesizeNameViaEdgeFunction(
 }
 
 /**
- * Ensures name audio exists in Supabase Storage for one participant.
- * Returns the public URL, or null if unavailable (network/API failure).
- * Caches the URL in AsyncStorage so subsequent calls skip the network check.
- */
-export async function ensureNameAudio(
-  participantId: ParticipantId,
-  participants: RitualParticipants,
-): Promise<string | null> {
-  const participant = participants[participantId]
-  const storagePath = buildNameStoragePath(participant.name, participant.gender)
-  const asyncStorageKey = `${CACHE_PREFIX}${storagePath}`
-
-  try {
-    const cached = await AsyncStorage.getItem(asyncStorageKey)
-    if (cached) return cached
-  } catch {
-    // Cache miss — proceed
-  }
-
-  const exists = await objectExists(storagePath)
-  if (exists) {
-    const url = getPublicUrl(storagePath)
-    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
-    return url
-  }
-
-  const url = await synthesizeNameViaEdgeFunction(participant.name, storagePath)
-  if (url) {
-    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
-  }
-  return url
-}
-
-/**
  * Ensures name audio exists at a known storagePath.
- * Use this in audio-service when you already have the path (from a GuidedAudioSegment)
- * and just need to guarantee the file is synthesized if missing.
+ * Checks AsyncStorage cache first, then calls the edge function which handles
+ * both synthesis (new file) and existence (already uploaded) cases server-side.
  */
 export async function ensureNameAudioAtPath(
   name: string,
   storagePath: string,
 ): Promise<string | null> {
-  const asyncStorageKey = `${CACHE_PREFIX}${storagePath}`
-
-  try {
-    const cached = await AsyncStorage.getItem(asyncStorageKey)
-    if (cached) return cached
-  } catch {
-    // Cache miss — proceed
-  }
-
-  const exists = await objectExists(storagePath)
-  if (exists) {
-    const url = getPublicUrl(storagePath)
-    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
-    return url
-  }
+  const cacheKey = `${CACHE_PREFIX}${storagePath}`
+  const cached = await AsyncStorage.getItem(cacheKey).catch(() => null)
+  if (cached) return cached
 
   const url = await synthesizeNameViaEdgeFunction(name, storagePath)
-  if (url) {
-    AsyncStorage.setItem(asyncStorageKey, url).catch(() => null)
-  }
+  if (url) AsyncStorage.setItem(cacheKey, url).catch(() => null)
   return url
+}
+
+/**
+ * Ensures name audio exists in Supabase Storage for one participant.
+ * Returns the public URL, or null if unavailable (network/API failure).
+ */
+export async function ensureNameAudio(
+  participantId: ParticipantId,
+  participants: RitualParticipants,
+): Promise<string | null> {
+  const { name, gender } = participants[participantId]
+  return ensureNameAudioAtPath(name, buildNameStoragePath(name, gender))
 }
 
 /**
