@@ -108,6 +108,11 @@ function HoldPanel({
             { [side === 'left' ? 'left' : 'right']: 0 },
           ]}
         />
+        {/* Ghost watermark — large faint name behind content */}
+        <Text style={styles.panelWatermark} numberOfLines={1} adjustsFontSizeToFit>
+          {name}
+        </Text>
+
         {/* Content */}
         <View style={styles.panelContent}>
           <Text style={[styles.panelName, isActive && styles.panelNameActive]} numberOfLines={1}>
@@ -285,6 +290,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
+  },
+  panelWatermark: {
+    position: 'absolute',
+    fontFamily: Fonts.display,
+    fontSize: 68,
+    color: '#FFFFFF',
+    opacity: 0.04,
+    textAlign: 'center',
+    letterSpacing: -1,
+    paddingHorizontal: 8,
   },
   panelContent: {
     alignItems: 'center',
