@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import Svg, { Circle } from 'react-native-svg'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withRepeat,
   withSequence,
   withTiming,
@@ -12,6 +13,8 @@ import Animated, {
 import { Pause, Play, SkipForward } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import { BorderRadius, Colors, SemanticColors, Spacing, Typography } from '@/constants/theme'
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
 interface CircularTimerProps {
   totalSeconds: number
@@ -38,7 +41,28 @@ export function CircularTimer({
   const strokeWidth = 9
   const radius = (TIMER_SIZE - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
-  const strokeDashoffset = circumference * (1 - progress)
+
+  // Smooth arc animation: animate strokeDashoffset toward the target each second.
+  // On round change (totalSeconds changes) reset immediately without animation.
+  const dashOffset = useSharedValue(circumference * (1 - progress))
+  const prevTotalRef = useRef(totalSeconds)
+
+  useEffect(() => {
+    const target = circumference * (1 - progress)
+    if (prevTotalRef.current !== totalSeconds) {
+      // New round — snap immediately
+      prevTotalRef.current = totalSeconds
+      dashOffset.value = target
+    } else {
+      // Same round — smooth 950ms tween so the ring glides rather than jumps
+      dashOffset.value = withTiming(target, { duration: 950, easing: Easing.out(Easing.quad) })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSeconds, totalSeconds])
+
+  const arcAnimatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: dashOffset.value,
+  }))
 
   // Ring dims when paused
   const ringOpacity = useSharedValue(1)
@@ -89,10 +113,10 @@ export function CircularTimer({
           />
         </Svg>
 
-        {/* Progress arc (dims on pause) */}
+        {/* Progress arc (dims on pause, animates smoothly each second) */}
         <Animated.View style={[StyleSheet.absoluteFill, ringStyle]}>
           <Svg width={TIMER_SIZE} height={TIMER_SIZE}>
-            <Circle
+            <AnimatedCircle
               cx={TIMER_SIZE / 2}
               cy={TIMER_SIZE / 2}
               r={radius}
@@ -101,7 +125,7 @@ export function CircularTimer({
               fill="none"
               strokeLinecap="round"
               strokeDasharray={`${circumference} ${circumference}`}
-              strokeDashoffset={strokeDashoffset}
+              animatedProps={arcAnimatedProps}
               rotation={-90}
               origin={`${TIMER_SIZE / 2}, ${TIMER_SIZE / 2}`}
             />
