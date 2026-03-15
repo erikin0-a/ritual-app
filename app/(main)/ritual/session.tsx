@@ -834,15 +834,15 @@ const styles = StyleSheet.create({
   roundEyebrow: {
     fontSize: 9,
     letterSpacing: 3,
-    color: Colors.accent,
+    color: 'rgba(255,255,255,0.30)',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
   roundTitle: {
     fontFamily: Fonts.display,
-    fontSize: 28,
-    color: Colors.text,
-    letterSpacing: -0.3,
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.80)',
+    letterSpacing: 0.1,
   },
   roundHint: {
     fontSize: 12,
