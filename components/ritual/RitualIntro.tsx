@@ -149,10 +149,19 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
     return () => clearInterval(timer)
   }, [voiceStartTime])
 
-  // Show consent circles trigger
+  // Show consent circles trigger (voice-driven)
   useEffect(() => {
     if (voiceSecond >= CONSENT_APPEAR_SEC) setShowCircles(true)
   }, [voiceSecond])
+
+  // Fallback: if voice never starts, show consent circles after a fixed wall-clock timeout
+  useEffect(() => {
+    if (showCircles) return
+    const fallbackMs = (CONSENT_APPEAR_SEC + 8) * 1000
+    const t = setTimeout(() => setShowCircles(true), fallbackMs)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Play chime at the right time
   useEffect(() => {
@@ -173,6 +182,12 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
       })
     }
 
+    // If voice never played (voiceStartTime is null), skip the wait entirely
+    if (!voiceStartTime) {
+      finishIntro()
+      return
+    }
+
     const currentSecond = voiceSecondRef.current
     if (currentSecond >= VOICEOVER_DURATION_SEC) {
       finishIntro()
@@ -180,7 +195,7 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
       const remainingMs = (VOICEOVER_DURATION_SEC - currentSecond) * 1000
       waitTimerRef.current = setTimeout(finishIntro, Math.max(0, remainingMs))
     }
-  }, [onConsentComplete, screenOpacity])
+  }, [onConsentComplete, screenOpacity, voiceStartTime])
 
   const activeItem = useMemo(() => {
     if (!voiceStartTime || showCircles) return null
