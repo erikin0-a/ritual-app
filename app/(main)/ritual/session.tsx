@@ -697,6 +697,7 @@ export default function RitualSessionScreen() {
             totalSeconds={round.duration}
             remainingSeconds={roundTimeRemaining}
             isPaused={isPaused}
+            roundIndex={currentRound ?? 1}
             onPauseToggle={pauseToggle}
             onSkip={advanceRound}
           />

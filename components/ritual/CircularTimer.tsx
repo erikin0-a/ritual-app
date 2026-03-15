@@ -9,10 +9,21 @@ import Animated, {
   withSequence,
   withTiming,
   Easing,
+  interpolateColor,
 } from 'react-native-reanimated'
 import { Pause, Play, SkipForward } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import { BorderRadius, Colors, SemanticColors, Spacing, Typography } from '@/constants/theme'
+import type { RoundId } from '@/types'
+
+// Ring color evolves across rounds: white (R1) → accent (R2-3) → deep rose (R4-5)
+const ROUND_STROKE_COLORS = [
+  'rgba(255,255,255,0.88)',
+  Colors.accent,
+  Colors.accent,
+  '#8B1A4A',
+  '#8B1A4A',
+] as const
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
@@ -20,6 +31,7 @@ interface CircularTimerProps {
   totalSeconds: number
   remainingSeconds: number
   isPaused: boolean
+  roundIndex?: RoundId
   onPauseToggle: () => void
   onSkip?: () => void
 }
@@ -34,6 +46,7 @@ export function CircularTimer({
   totalSeconds,
   remainingSeconds,
   isPaused,
+  roundIndex = 1,
   onPauseToggle,
   onSkip,
 }: CircularTimerProps) {
@@ -60,8 +73,17 @@ export function CircularTimer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainingSeconds, totalSeconds])
 
+  // Ring color shifts per round: white (R1) → accent (R2-3) → accentDark (R4-5)
+  const colorProgress = useSharedValue(roundIndex - 1)
+
+  useEffect(() => {
+    colorProgress.value = withTiming(roundIndex - 1, { duration: 1200, easing: Easing.out(Easing.cubic) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundIndex])
+
   const arcAnimatedProps = useAnimatedProps(() => ({
     strokeDashoffset: dashOffset.value,
+    stroke: interpolateColor(colorProgress.value, [0, 1, 2, 3, 4], [...ROUND_STROKE_COLORS]),
   }))
 
   // Ring dims when paused
@@ -120,7 +142,6 @@ export function CircularTimer({
               cx={TIMER_SIZE / 2}
               cy={TIMER_SIZE / 2}
               r={radius}
-              stroke={SemanticColors.timerFill}
               strokeWidth={strokeWidth}
               fill="none"
               strokeLinecap="round"
