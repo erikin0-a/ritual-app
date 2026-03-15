@@ -105,6 +105,22 @@ function DimmingOrb({ pct }: { pct: number }) {
   )
 }
 
+function RoundEdgeFlash() {
+  const opacity = useSharedValue(0)
+
+  useEffect(() => {
+    opacity.value = withSequence(
+      withTiming(0.6, { duration: 150 }),
+      withTiming(0, { duration: 450 }),
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }))
+
+  return <Animated.View style={[styles.roundEdgeFlash, animStyle]} pointerEvents="none" />
+}
+
 function ActiveDot() {
   const scale = useSharedValue(1)
   const shadowOpacity = useSharedValue(0.55)
@@ -210,6 +226,7 @@ export default function RitualSessionScreen() {
   const [branchByRound, setBranchByRound] = useState<Partial<Record<RoundId, GuidedBranch>>>({})
   const [transitionFrom, setTransitionFrom] = useState<number | 'intro'>('intro')
   const [voiceStartTime, setVoiceStartTime] = useState<number | null>(null)
+  const [edgeFlashKey, setEdgeFlashKey] = useState(0)
 
   const didStartSessionRef = useRef(false)
   const previousRoundRef = useRef<RoundId | null>(null)
@@ -474,6 +491,9 @@ export default function RitualSessionScreen() {
 
   useEffect(() => {
     if (phase !== 'roundPlayback' || status !== 'in_round' || !currentRound) return
+
+    setEdgeFlashKey((k) => k + 1)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => null)
 
     if (resolvedMode === 'guided') {
       startAudioRound(currentRound).catch(() => null)
@@ -741,6 +761,7 @@ export default function RitualSessionScreen() {
       </View>
 
       {resolvedMode === 'guided' && <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />}
+      {edgeFlashKey > 0 && <RoundEdgeFlash key={edgeFlashKey} />}
     </View>
   )
 }
@@ -924,6 +945,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
     opacity: 0.07,
     zIndex: 1,
+  },
+  roundEdgeFlash: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    borderRadius: 0,
+    zIndex: 10,
+    pointerEvents: 'none' as const,
   },
   darkScreen: {
     flex: 1,
