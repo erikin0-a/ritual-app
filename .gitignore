@@ -63,3 +63,5 @@ take_screenshots.js
 
 # Generated UI examples
 ui-example-generated/
+ios/
+.claude/
