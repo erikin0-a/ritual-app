@@ -694,24 +694,13 @@ export default function RitualSessionScreen() {
       {/* Safe content area */}
       <View style={[styles.safeContent, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
 
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
-          <View style={styles.headerMeta}>
-            <Text style={styles.headerMode}>
-              {resolvedMode === 'guided' ? 'Привилегия' : 'Свободный режим'}
-            </Text>
-            <View style={styles.headerDot} />
-            <Text style={styles.headerRoundText}>Раунд {currentRound} из 5</Text>
-          </View>
-        </View>
+        {/* ── Header — matches БЛОК 6.2 spec across all phases ── */}
+        {headerContent}
 
-        {/* ── Round name ── */}
-        <View style={styles.roundNameArea}>
-          <Text style={styles.roundEyebrow}>{roundScene.title}</Text>
-          <Text style={styles.roundTitle}>{roundScene.titleShort}</Text>
+        {/* ── Timer hint ── */}
+        {roundScene.timerHint ? (
           <Text style={styles.roundHint}>{roundScene.timerHint}</Text>
-        </View>
+        ) : null}
 
         {/* ── Timer (main focus) ── */}
         <View style={styles.timerArea}>
@@ -834,43 +823,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.xl,
     justifyContent: 'space-between',
-  },
-  headerMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  headerMode: {
-    ...Typography.caption,
-    color: Colors.accent,
-  },
-  headerDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  headerRoundText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  roundNameArea: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  roundEyebrow: {
-    fontSize: 9,
-    letterSpacing: 3,
-    color: 'rgba(255,255,255,0.30)',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  roundTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 20,
-    color: 'rgba(255,255,255,0.80)',
-    letterSpacing: 0.1,
   },
   roundHint: {
     fontSize: 12,
