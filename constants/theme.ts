@@ -8,9 +8,10 @@ export const Colors = {
   background: '#000000',
   backgroundElevated: '#0E0E0E',
   backgroundCanvas: '#050505',
-  accent: '#C2476D',
-  accentStrong: '#D05A7F',
-  accentMuted: 'rgba(194, 71, 109, 0.18)',
+  accent: '#C2185B',
+  accentDark: '#8B1A4A',
+  accentStrong: '#D0316E',
+  accentMuted: 'rgba(194, 24, 91, 0.18)',
   secondary: '#D4956A',
   secondarySoft: 'rgba(212, 149, 106, 0.18)',
   success: '#7EC8A4',
@@ -34,8 +35,8 @@ export const Colors = {
   gradientStart: '#1E0A11',
   gradientMid: '#120810',
   gradientEnd: '#040304',
-  ritualGlow: 'rgba(194, 71, 109, 0.2)',
-  ritualGlowStrong: 'rgba(194, 71, 109, 0.4)',
+  ritualGlow: 'rgba(194, 24, 91, 0.2)',
+  ritualGlowStrong: 'rgba(194, 24, 91, 0.4)',
 } as const
 
 export const SemanticColors = {
@@ -50,7 +51,7 @@ export const SemanticColors = {
   hairline: Colors.border,
   hairlineStrong: Colors.borderStrong,
   chip: 'rgba(255, 255, 255, 0.06)',
-  chipAccent: 'rgba(194, 71, 109, 0.18)',
+  chipAccent: 'rgba(194, 24, 91, 0.18)',
   chipSuccess: 'rgba(126, 200, 164, 0.16)',
   chipWarning: 'rgba(237, 188, 120, 0.16)',
   timerTrack: 'rgba(255, 255, 255, 0.08)',

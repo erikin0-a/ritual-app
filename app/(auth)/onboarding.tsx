@@ -134,7 +134,7 @@ function PartnerCard({
   const borderOpacity = useSharedValue(0)
 
   const focusBorderStyle = useAnimatedStyle(() => ({
-    borderColor: `rgba(194, 71, 109, ${borderOpacity.value})`,
+    borderColor: `rgba(194, 24, 91, ${borderOpacity.value})`,
   }))
 
   function handleFocus() {
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmBtnDisabled: {
-    backgroundColor: 'rgba(194,71,109,0.25)',
+    backgroundColor: 'rgba(194,24,91,0.25)',
   },
   confirmBtnText: {
     color: '#fff',

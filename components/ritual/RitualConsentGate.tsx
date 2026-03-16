@@ -85,7 +85,7 @@ function HoldPanel({
         <LinearGradient
           colors={
             isActive
-              ? ['rgba(194,71,109,0.20)', 'rgba(139,26,74,0.08)']
+              ? ['rgba(194,24,91,0.20)', 'rgba(139,26,74,0.08)']
               : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)']
           }
           start={{ x: 0, y: 0 }}
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.09)',
   },
   panelBorderActive: {
-    borderColor: 'rgba(194,71,109,0.45)',
+    borderColor: 'rgba(194,24,91,0.45)',
   },
   panelGlow: {
     position: 'absolute',
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   fingerDotActive: {
     borderColor: Colors.accent,
-    backgroundColor: 'rgba(194,71,109,0.14)',
+    backgroundColor: 'rgba(194,24,91,0.14)',
   },
   fingerDotInner: {
     width: 10,

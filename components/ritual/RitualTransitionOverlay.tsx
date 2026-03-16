@@ -182,8 +182,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(141,216,176,0.16)',
   },
   forbiddenPill: {
-    backgroundColor: 'rgba(194,71,109,0.09)',
-    borderColor: 'rgba(194,71,109,0.16)',
+    backgroundColor: 'rgba(194,24,91,0.09)',
+    borderColor: 'rgba(194,24,91,0.16)',
   },
   pillText: {
     fontSize: 12,
