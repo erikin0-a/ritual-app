@@ -19,8 +19,8 @@ const { height: SCREEN_H } = Dimensions.get('window')
 
 const HOLD_MS = 1500
 const TICK_MS = 50
-const TRACK_H = Math.min(180, SCREEN_H * 0.22)
-const PANEL_H = Math.min(320, SCREEN_H * 0.40)
+const TRACK_W = Math.min(180, SCREEN_H * 0.22)
+const PANEL_H = Math.min(260, SCREEN_H * 0.34)
 
 export interface RitualConsentGateProps {
   participants: RitualParticipants
@@ -30,13 +30,11 @@ export interface RitualConsentGateProps {
 // ─── Hold Panel ───────────────────────────────────────────────────────────────
 function HoldPanel({
   name,
-  side,
   isActive,
   onPressIn,
   onPressOut,
 }: {
   name: string
-  side: 'left' | 'right'
   isActive: boolean
   onPressIn: () => void
   onPressOut: () => void
@@ -90,8 +88,8 @@ function HoldPanel({
               ? ['rgba(194,71,109,0.20)', 'rgba(139,26,74,0.08)']
               : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)']
           }
-          start={{ x: side === 'left' ? 0 : 1, y: 0 }}
-          end={{ x: side === 'left' ? 1 : 0, y: 1 }}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         {/* Border overlay */}
@@ -102,11 +100,7 @@ function HoldPanel({
         {/* Glow bloom */}
         <Animated.View
           pointerEvents="none"
-          style={[
-            styles.panelGlow,
-            glowStyle,
-            { [side === 'left' ? 'left' : 'right']: 0 },
-          ]}
+          style={[styles.panelGlow, glowStyle]}
         />
         {/* Ghost watermark — large faint name behind content */}
         <Text style={styles.panelWatermark} numberOfLines={1} adjustsFontSizeToFit>
@@ -143,7 +137,7 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fillStyle = useAnimatedStyle(() => ({
-    height: interpolate(progressShared.value, [0, 1], [0, TRACK_H]),
+    width: interpolate(progressShared.value, [0, 1], [0, TRACK_W]),
   }))
 
   const instrStyle = useAnimatedStyle(() => ({
@@ -201,36 +195,33 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
 
   return (
     <Animated.View entering={FadeIn.duration(900)} style={styles.container}>
-      {/* Instruction */}
-      <Animated.Text style={[styles.instruction, bothActive && styles.instructionBoth, instrStyle]}>
-        {bothActive ? 'держите оба...' : 'оба партнёра удерживают одновременно'}
-      </Animated.Text>
-
-      {/* Panels + progress */}
-      <View style={styles.panelsRow}>
-        <HoldPanel
-          name={participants.p1.name}
-          side="left"
-          isActive={p1Active}
-          onPressIn={() => startHold('p1')}
-          onPressOut={() => cancelHold('p1')}
-        />
-
-        {/* Center progress indicator */}
-        <View style={styles.centerColumn}>
-          <View style={[styles.progressTrack, { height: TRACK_H }]}>
-            <Animated.View style={[styles.progressFill, fillStyle]} />
-          </View>
-        </View>
-
+      {/* P2 panel — top, rotated 180° so they face the device from the other side */}
+      <View style={styles.rotatedWrap}>
         <HoldPanel
           name={participants.p2.name}
-          side="right"
           isActive={p2Active}
           onPressIn={() => startHold('p2')}
           onPressOut={() => cancelHold('p2')}
         />
       </View>
+
+      {/* Center progress indicator + instruction */}
+      <View style={styles.centerRow}>
+        <View style={[styles.progressTrack, { width: TRACK_W }]}>
+          <Animated.View style={[styles.progressFill, fillStyle]} />
+        </View>
+        <Animated.Text style={[styles.instruction, bothActive && styles.instructionBoth, instrStyle]}>
+          {bothActive ? 'держите оба...' : 'оба партнёра\nудерживают'}
+        </Animated.Text>
+      </View>
+
+      {/* P1 panel — bottom */}
+      <HoldPanel
+        name={participants.p1.name}
+        isActive={p1Active}
+        onPressIn={() => startHold('p1')}
+        onPressOut={() => cancelHold('p1')}
+      />
     </Animated.View>
   )
 }
@@ -241,8 +232,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 36,
+    gap: 12,
     paddingHorizontal: 20,
+  },
+  rotatedWrap: {
+    width: '100%',
+    transform: [{ rotate: '180deg' }],
+  },
+  centerRow: {
+    alignItems: 'center',
+    gap: 12,
   },
   instruction: {
     fontSize: 10,
@@ -257,14 +256,8 @@ const styles = StyleSheet.create({
     color: Colors.accent,
     letterSpacing: 3,
   },
-  panelsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    gap: 10,
-  },
   panelPressable: {
-    flex: 1,
+    width: '100%',
   },
   panel: {
     borderRadius: 24,
@@ -284,8 +277,9 @@ const styles = StyleSheet.create({
   panelGlow: {
     position: 'absolute',
     top: 0,
+    left: 0,
+    right: 0,
     bottom: 0,
-    width: '50%',
     shadowColor: Colors.accent,
     shadowOpacity: 0.6,
     shadowRadius: 24,
@@ -351,20 +345,14 @@ const styles = StyleSheet.create({
   holdHintActive: {
     color: 'rgba(245,240,242,0.55)',
   },
-  centerColumn: {
-    width: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   progressTrack: {
-    width: 2,
+    height: 2,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 1,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
   },
   progressFill: {
-    width: 2,
+    height: 2,
     backgroundColor: Colors.accent,
     borderRadius: 1,
     shadowColor: Colors.accent,
