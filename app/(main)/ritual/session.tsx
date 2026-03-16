@@ -590,10 +590,12 @@ export default function RitualSessionScreen() {
   const headerContent = (
     <View style={styles.header}>
       <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
-      <Text style={styles.headerLabel}>
-        {resolvedMode === 'guided' ? 'Привилегия' : 'Свободный режим'}
-      </Text>
-      {currentRound ? <Text style={styles.headerRound}>Раунд {currentRound} из 5</Text> : null}
+      {currentRound ? (
+        <Text style={styles.headerLabel}>РАУНД {currentRound}</Text>
+      ) : null}
+      {roundScene ? (
+        <Text style={styles.headerRound}>{roundScene.titleShort}</Text>
+      ) : null}
     </View>
   )
 
@@ -811,12 +813,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   headerLabel: {
-    ...Typography.label,
-    color: Colors.accent,
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.30)',
+    fontWeight: '600',
   },
   headerRound: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.80)',
+    letterSpacing: 0.1,
   },
   loadingText: {
     ...Typography.body,
