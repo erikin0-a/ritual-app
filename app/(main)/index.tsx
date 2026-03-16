@@ -126,8 +126,8 @@ export default function ModesHubScreen() {
   const scrollY = useSharedValue(0)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(timer)
+    const timer = globalThis.setTimeout(() => setIsLoading(false), 500)
+    return () => globalThis.clearTimeout(timer)
   }, [])
 
   const scrollHandler = useAnimatedScrollHandler((event) => {

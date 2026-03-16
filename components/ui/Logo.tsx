@@ -38,6 +38,7 @@ export function Logo({
         true
       )
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animated])
 
   const animatedProps = useAnimatedProps(() => ({

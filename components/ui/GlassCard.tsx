@@ -6,7 +6,7 @@ interface GlassCardProps extends ViewProps {
   highlight?: boolean
 }
 
-export const GlassCard = React.forwardRef<View, GlassCardProps>(({ children, style, highlight = false, ...rest }, ref) => {
+export const GlassCard = React.forwardRef<View, GlassCardProps>(function GlassCard({ children, style, highlight = false, ...rest }, ref) {
   return (
     <View ref={ref} style={[styles.container, highlight && styles.highlight, style]} {...rest}>
       <View style={styles.content}>

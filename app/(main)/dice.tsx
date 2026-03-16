@@ -69,7 +69,7 @@ export default function DiceScreen() {
     Analytics.diceRolled()
 
     // Brief animation delay for tactile feel
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       setResult(rollDice())
       setIsRolling(false)
     }, 500)

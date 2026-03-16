@@ -23,6 +23,7 @@ export function Skeleton({ style }: SkeletonProps) {
       -1,
       false
     )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const animatedStyle = useAnimatedStyle(() => {

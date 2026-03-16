@@ -17,8 +17,8 @@ export default function RitualModeSelectionScreen() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200)
-    return () => clearTimeout(timer)
+    const timer = globalThis.setTimeout(() => setIsLoading(false), 1200)
+    return () => globalThis.clearTimeout(timer)
   }, [])
 
   const handleSelect = (mode: RitualMode) => {

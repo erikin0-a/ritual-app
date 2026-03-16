@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { VOICE_SCRIPT_CATALOG } from '@/constants/voice-script-catalog'
 import { supabase } from '@/lib/supabase'
 import {

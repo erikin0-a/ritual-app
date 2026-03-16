@@ -135,13 +135,13 @@ function LoadingPane() {
 
   // Cycle loading phase text every 1.5s
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = globalThis.setInterval(() => {
       textOpacity.value = withTiming(0, { duration: 300 }, () => {
         setPhaseIndex((i) => (i + 1) % LOADING_PHASES.length)
         textOpacity.value = withTiming(1, { duration: 300 })
       })
     }, 1500)
-    return () => clearInterval(interval)
+    return () => globalThis.clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -208,7 +208,7 @@ export default function RitualSetupScreen() {
     // Pre-warm name audio; swallow errors — session works without it
     await warmNameAudio(participants).catch(() => null)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
-    await new Promise<void>((resolve) => setTimeout(resolve, 800))
+    await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 800))
     router.push({ pathname: '/(main)/ritual/session', params: { mode } })
   }
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * AudioService — concurrent voice + background music playback for Guided Ritual.
  *

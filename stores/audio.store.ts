@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Audio Zustand store for the Premium Guided Ritual.
  *

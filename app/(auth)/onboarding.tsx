@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -15,13 +15,11 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
-  FadeOut,
   SlideInRight,
   SlideOutLeft,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
   withSpring,
   Easing,
   runOnJS,
@@ -34,7 +32,7 @@ import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import type { ParticipantGender } from '@/types'
 import { createRitualParticipants } from '@/lib/ritual-participants'
 
-const { height, width } = Dimensions.get('window')
+const { height } = Dimensions.get('window')
 
 const ONBOARDING_PHRASES = [
   'Пространство для двоих',
@@ -61,8 +59,8 @@ function CyclingPhrase() {
   }, [])
 
   useEffect(() => {
-    const timer = setInterval(advance, 4000)
-    return () => clearInterval(timer)
+    const timer = globalThis.setInterval(advance, 4000)
+    return () => globalThis.clearInterval(timer)
   }, [advance])
 
   const animStyle = useAnimatedStyle(() => ({

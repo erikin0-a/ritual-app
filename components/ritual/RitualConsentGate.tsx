@@ -134,7 +134,7 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
   const progressRef = useRef(0)
   const progressShared = useSharedValue(0)
   const completedRef = useRef(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const intervalRef = useRef<ReturnType<typeof globalThis.setInterval> | null>(null)
 
   const fillStyle = useAnimatedStyle(() => ({
     width: interpolate(progressShared.value, [0, 1], [0, TRACK_W]),
@@ -148,18 +148,18 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
     if (completedRef.current) return
     completedRef.current = true
     if (intervalRef.current) {
-      clearInterval(intervalRef.current)
+      globalThis.clearInterval(intervalRef.current)
       intervalRef.current = null
     }
     progressShared.value = withTiming(1, { duration: 120 })
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
     }
-    setTimeout(onComplete, 380)
+    globalThis.setTimeout(onComplete, 380)
   }, [onComplete, progressShared])
 
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
+    intervalRef.current = globalThis.setInterval(() => {
       if (completedRef.current) return
       if (!p1Ref.current || !p2Ref.current) return
       progressRef.current = Math.min(1, progressRef.current + TICK_MS / HOLD_MS)
@@ -170,7 +170,7 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
     }, TICK_MS)
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (intervalRef.current) globalThis.clearInterval(intervalRef.current)
     }
   }, [handleComplete, progressShared])
 

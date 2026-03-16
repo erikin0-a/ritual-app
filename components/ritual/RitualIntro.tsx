@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 import { Audio } from 'expo-av'
 import Animated, {
   useSharedValue,
@@ -31,11 +31,11 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
   const scaleBase = useSharedValue(0.97)
   const pulseScale = useSharedValue(1)
   const prevItemRef = useRef<RitualIntroTimelineItem | null>(null)
-  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pulseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
 
   useEffect(() => {
     if (pulseTimerRef.current) {
-      clearTimeout(pulseTimerRef.current)
+      globalThis.clearTimeout(pulseTimerRef.current)
       pulseTimerRef.current = null
     }
     const prev = prevItemRef.current
@@ -52,7 +52,7 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
       translateY.value = withTiming(0, { duration: 950, easing: Easing.out(Easing.cubic) })
       scaleBase.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) })
 
-      pulseTimerRef.current = setTimeout(() => {
+      pulseTimerRef.current = globalThis.setTimeout(() => {
         pulseScale.value = withRepeat(
           withSequence(
             withTiming(1.013, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
@@ -68,7 +68,7 @@ function IntroText({ activeItem }: { activeItem: RitualIntroTimelineItem | null 
       translateY.value = withTiming(-32, { duration: 750, easing: Easing.in(Easing.cubic) })
       scaleBase.value = withTiming(1.016, { duration: 750 })
     }
-    return () => { if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current) }
+    return () => { if (pulseTimerRef.current) globalThis.clearTimeout(pulseTimerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeItem])
 
@@ -109,7 +109,7 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
   const completeTriggeredRef = useRef(false)
   const chimePlayedRef = useRef(false)
   const chimeSoundRef = useRef<Audio.Sound | null>(null)
-  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const waitTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
 
   useEffect(() => {
     screenOpacity.value = withTiming(1, { duration: 2000, easing: Easing.out(Easing.ease) })
@@ -133,7 +133,7 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
     return () => {
       isMounted = false
       chimeSoundRef.current?.unloadAsync()
-      if (waitTimerRef.current) clearTimeout(waitTimerRef.current)
+      if (waitTimerRef.current) globalThis.clearTimeout(waitTimerRef.current)
     }
   }, [])
 
@@ -146,8 +146,8 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
       setVoiceSecond(s)
     }
     update()
-    const timer = setInterval(update, 250)
-    return () => clearInterval(timer)
+    const timer = globalThis.setInterval(update, 250)
+    return () => globalThis.clearInterval(timer)
   }, [voiceStartTime])
 
   // Show consent circles trigger (voice-driven)
@@ -159,8 +159,8 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
   useEffect(() => {
     if (showCircles) return
     const fallbackMs = (CONSENT_APPEAR_SEC + 8) * 1000
-    const t = setTimeout(() => setShowCircles(true), fallbackMs)
-    return () => clearTimeout(t)
+    const t = globalThis.setTimeout(() => setShowCircles(true), fallbackMs)
+    return () => globalThis.clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -194,7 +194,7 @@ export function RitualIntro({ participants, onConsentComplete, voiceStartTime }:
       finishIntro()
     } else {
       const remainingMs = (VOICEOVER_DURATION_SEC - currentSecond) * 1000
-      waitTimerRef.current = setTimeout(finishIntro, Math.max(0, remainingMs))
+      waitTimerRef.current = globalThis.setTimeout(finishIntro, Math.max(0, remainingMs))
     }
   }, [onConsentComplete, screenOpacity, voiceStartTime])
 

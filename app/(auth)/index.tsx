@@ -39,8 +39,8 @@ function CyclingPhrase() {
   }, [])
 
   useEffect(() => {
-    const timer = setInterval(advance, 4000)
-    return () => clearInterval(timer)
+    const timer = globalThis.setInterval(advance, 4000)
+    return () => globalThis.clearInterval(timer)
   }, [advance])
 
   const animStyle = useAnimatedStyle(() => ({

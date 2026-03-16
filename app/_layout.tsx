@@ -89,7 +89,7 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
     )
 
     // Phase text transitions
-    const t1 = setTimeout(() => {
+    const t1 = globalThis.setTimeout(() => {
       phaseOpacity.value = withTiming(0, { duration: 220 }, (done) => {
         if (!done) return
         runOnJS(setPhaseIndex)(1)
@@ -97,7 +97,7 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
       })
     }, 1200)
 
-    const t2 = setTimeout(() => {
+    const t2 = globalThis.setTimeout(() => {
       phaseOpacity.value = withTiming(0, { duration: 220 }, (done) => {
         if (!done) return
         runOnJS(setPhaseIndex)(2)
@@ -106,7 +106,7 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
     }, 2400)
 
     // Exit: haptic + 400ms fade-out
-    const exitTimer = setTimeout(() => {
+    const exitTimer = globalThis.setTimeout(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
       screenOpacity.value = withTiming(0, { duration: 400 }, (done) => {
         if (done) runOnJS(onFinish)()
@@ -114,9 +114,9 @@ function SplashScreen({ onFinish }: { onFinish: () => void }) {
     }, 3600)
 
     return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      clearTimeout(exitTimer)
+      globalThis.clearTimeout(t1)
+      globalThis.clearTimeout(t2)
+      globalThis.clearTimeout(exitTimer)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -175,6 +175,8 @@ function RootNavigator() {
     initAnalytics()
     initRevenueCat().catch(() => {})
     hydrate()
+  // hydrate is a stable store selector — intentionally omitted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

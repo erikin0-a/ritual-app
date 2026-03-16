@@ -36,7 +36,7 @@ async function synthesizeNameViaEdgeFunction(
       },
     })
     if (error) return null
-    const uploaded = (data as { uploaded?: Array<{ uri?: string }> } | null)?.uploaded
+    const uploaded = (data as { uploaded?: { uri?: string }[] } | null)?.uploaded
     if (uploaded && uploaded.length > 0) return uploaded[0].uri ?? null
     // File already existed (returned in skipped) — derive public URL locally
     return getPublicUrl(storagePath)
