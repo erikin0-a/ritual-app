@@ -201,7 +201,7 @@ export default function ModesHubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0A0F',
+    backgroundColor: Colors.bg,
   },
   header: {
     position: 'absolute',

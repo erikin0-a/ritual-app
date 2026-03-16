@@ -133,7 +133,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0A0F',
+    backgroundColor: Colors.bg,
   },
   phraseArea: {
     height: SCREEN_H * 0.5,

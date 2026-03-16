@@ -304,7 +304,7 @@ export default function RitualSetupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0D0A0F',
+    backgroundColor: Colors.bg,
   },
   safe: {
     flex: 1,

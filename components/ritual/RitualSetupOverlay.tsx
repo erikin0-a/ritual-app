@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmText: {
-    color: '#0D0A0F',
+    color: Colors.bg,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 2.5,

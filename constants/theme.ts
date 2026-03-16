@@ -5,6 +5,7 @@ export const Fonts = {
 } as const
 
 export const Colors = {
+  bg: '#0D0A0F',
   background: '#000000',
   backgroundElevated: '#0E0E0E',
   backgroundCanvas: '#050505',

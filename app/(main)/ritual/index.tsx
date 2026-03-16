@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router'
 import { Sparkles, Headphones, Vibrate, Wind, ArrowRight } from 'lucide-react-native'
 import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, interpolate, interpolateColor } from 'react-native-reanimated'
 import { useState, useEffect } from 'react'
-import { Fonts } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 import { useSubscriptionStore } from '@/stores/subscription.store'
 import { Analytics } from '@/lib/analytics'
 import type { RitualMode } from '@/types'
@@ -172,7 +172,7 @@ export default function RitualModeSelectionScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0D0A0F',
+    backgroundColor: Colors.bg,
   },
   safe: {
     flex: 1,

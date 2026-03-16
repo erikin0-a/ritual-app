@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
+import { Colors } from '@/constants/theme'
 
 const { width, height } = Dimensions.get('window')
 
@@ -129,7 +130,7 @@ export const LiquidBackground = ({ intensity = 0.4 }: LiquidBackgroundProps) => 
     <View style={styles.container} pointerEvents="none">
       {/* Base canvas */}
       <LinearGradient
-        colors={['#0D0A0F', '#080608', '#000000']}
+        colors={[Colors.bg, '#080608', '#000000']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -159,7 +160,7 @@ export const LiquidBackground = ({ intensity = 0.4 }: LiquidBackgroundProps) => 
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0D0A0F',
+    backgroundColor: Colors.bg,
     overflow: 'hidden',
   },
   primaryBlob: {
