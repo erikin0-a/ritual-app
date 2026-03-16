@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, Pressable, ImageBackground, Dimensions } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
 import { Lock } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import Animated, {
@@ -17,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Fonts } from '@/constants/theme'
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
 
 const { height: SCREEN_H } = Dimensions.get('window')
 const CARD_HEIGHT = SCREEN_H * 0.5
@@ -131,8 +134,8 @@ export default function ModesHubScreen() {
     scrollY.value = event.contentOffset.y
   })
 
-  const headerBgStyle = useAnimatedStyle(() => ({
-    backgroundColor: `rgba(13,10,15,${interpolate(scrollY.value, [0, 80], [0, 0.85], 'clamp')})`,
+  const headerBlurStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, 80], [0, 1], 'clamp'),
   }))
 
   const headerHeight = insets.top + 100
@@ -144,8 +147,19 @@ export default function ModesHubScreen() {
       {/* Floating header — fixed over ScrollView */}
       <Animated.View
         entering={FadeIn.duration(1200)}
-        style={[styles.header, { paddingTop: insets.top + 24, height: headerHeight }, headerBgStyle]}
+        style={[styles.header, { paddingTop: insets.top + 24, height: headerHeight }]}
       >
+        {/* Backdrop blur + dark overlay — fades in at scroll > 80 */}
+        <AnimatedBlurView
+          intensity={20}
+          tint="dark"
+          style={[StyleSheet.absoluteFill, headerBlurStyle]}
+          pointerEvents="none"
+        />
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.headerOverlay, headerBlurStyle]}
+          pointerEvents="none"
+        />
         {isLoading ? (
           <View style={{ gap: 16 }}>
             <Skeleton style={{ width: 100, height: 10 }} />
@@ -198,6 +212,10 @@ const styles = StyleSheet.create({
     zIndex: 30,
     justifyContent: 'flex-end',
     paddingBottom: 20,
+    overflow: 'hidden',
+  },
+  headerOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.85)',
   },
   subtitle: {
     color: 'rgba(255,255,255,0.3)',
