@@ -149,7 +149,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     if (preloadedRounds.has(roundId)) return
     const existingPromise = roundPreloadPromises.get(roundId)
     if (existingPromise) {
-      await existingPromise
+      try {
+        await existingPromise
+      } catch {
+        // In-flight call failed; swallow — session continues without preloaded round audio.
+      }
       return
     }
 
@@ -185,7 +189,11 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const { voiceParticipants, isGuidedLibraryReady } = get()
     if (isGuidedLibraryReady) return
     if (guidedLibraryPreloadPromise) {
-      await guidedLibraryPreloadPromise
+      try {
+        await guidedLibraryPreloadPromise
+      } catch {
+        // In-flight call failed; swallow — session continues without preloaded audio.
+      }
       return
     }
 

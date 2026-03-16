@@ -193,23 +193,29 @@ export default function RitualSetupScreen() {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleStart = async () => {
-    const participants = hasStoredNames
-      ? storedParticipants
-      : (() => {
-          const created = createRitualParticipants({
-            p1: { id: 'p1', name: partner1Name.trim(), gender: partner1Gender },
-            p2: { id: 'p2', name: partner2Name.trim(), gender: partner2Gender },
-          })
-          setRitualParticipants(created)
-          return created
-        })()
+    try {
+      const participants = hasStoredNames
+        ? storedParticipants
+        : (() => {
+            const created = createRitualParticipants({
+              p1: { id: 'p1', name: partner1Name.trim(), gender: partner1Gender },
+              p2: { id: 'p2', name: partner2Name.trim(), gender: partner2Gender },
+            })
+            setRitualParticipants(created)
+            return created
+          })()
 
-    setIsLoading(true)
-    // Pre-warm name audio; swallow errors — session works without it
-    await warmNameAudio(participants).catch(() => null)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
-    await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 800))
-    router.push({ pathname: '/(main)/ritual/session', params: { mode } })
+      setIsLoading(true)
+      // Pre-warm name audio; swallow errors — session works without it
+      await warmNameAudio(participants).catch(() => null)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 800))
+      router.push({ pathname: '/(main)/ritual/session', params: { mode } })
+    } catch {
+      // Never let an unhandled rejection from an onPress crash the app.
+      // Navigation proceeds without warmup audio in the worst case.
+      setIsLoading(false)
+    }
   }
 
   const isValid = hasStoredNames
