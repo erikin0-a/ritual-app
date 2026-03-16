@@ -17,6 +17,7 @@ import {
   type RitualIntroTimelineItem,
 } from '@/constants/ritual-intro-timeline'
 import { RitualConsentGate } from '@/components/ritual/RitualConsentGate'
+import { Colors } from '@/constants/theme'
 import type { RitualParticipants } from '@/types'
 
 const INTRO_FONT_FAMILY = Platform.select({ ios: 'System', default: undefined })
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   introTextAccent: {
-    color: '#E91E8C',
+    color: Colors.accentStrong,
     fontWeight: '700',
   },
 })
