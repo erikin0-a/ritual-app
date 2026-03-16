@@ -110,7 +110,7 @@ export default function RitualModeSelectionScreen() {
                       </View>
                       
                       <Text style={styles.premiumDesc}>
-                        Полное сенсорное погружение. Направляющий голос, бинауральный звук и тактильная синхронизация.
+                        Полное сенсорное погружение. Направляющий голос, синхронизированные вибрации и адаптивный звук.
                       </Text>
                       
                       <View style={styles.features}>
