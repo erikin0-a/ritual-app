@@ -119,7 +119,7 @@ function RootNavigator() {
     if (isOnboarded) {
       router.replace('/(main)')
     } else {
-      router.replace('/(auth)/onboarding')
+      router.replace('/(auth)/' as never)
     }
   }, [splashDone, isLoading, isOnboarded, fontsLoaded])
 
