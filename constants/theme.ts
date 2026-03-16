@@ -6,7 +6,7 @@ export const Fonts = {
 
 export const Colors = {
   bg: '#0D0A0F',
-  background: '#000000',
+  background: '#0D0A0F',
   backgroundElevated: '#0E0E0E',
   backgroundCanvas: '#050505',
   accent: '#C2185B',
