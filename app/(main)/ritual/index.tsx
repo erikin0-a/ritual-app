@@ -222,11 +222,11 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
   sub: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.50)',
     fontWeight: '300',
     marginTop: 8,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   cardsWrapper: {
     flex: 1,
