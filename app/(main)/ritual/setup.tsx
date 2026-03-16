@@ -25,7 +25,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
-import { Fonts } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
 import { createRitualParticipants } from '@/lib/ritual-participants'
 import { warmNameAudio } from '@/lib/name-audio-service'
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.07)',
-    shadowColor: '#C2185B',
+    shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 40,
     shadowOpacity: 0.5,
