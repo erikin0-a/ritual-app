@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, Dimensions } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -8,12 +8,11 @@ import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
+  withRepeat,
   withSequence,
-  withDelay,
   Easing,
-  runOnJS
+  runOnJS,
 } from 'react-native-reanimated'
 import {
   useFonts,
@@ -23,81 +22,146 @@ import {
 } from '@expo-google-fonts/playfair-display'
 import { initAnalytics } from '@/lib/analytics'
 import { initRevenueCat } from '@/lib/revenuecat'
-import { Colors } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/auth.store'
-import { Logo } from '@/components/ui/Logo'
 
 const queryClient = new QueryClient()
-const { width, height } = Dimensions.get('window')
+const { width } = Dimensions.get('window')
 
-// Synchronized haptic sequence
-async function fireSplashHaptics() {
-  try {
-    // Initial impact
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    
-    // Heartbeat-like pattern
-    await new Promise(r => setTimeout(r, 400))
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    await new Promise(r => setTimeout(r, 150))
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-  } catch {
-    // Ignore on unsupported devices
-  }
-}
+const TRACK_W = 192
+const SHIMMER_W = 80
 
+const PHASE_TEXTS = [
+  'Приглашаем вас...',
+  'Синхронизируем...',
+  'Готовимся к ритуалу...',
+]
+
+// ─── Splash Screen ─────────────────────────────────────────────────────────────
 function SplashScreen({ onFinish }: { onFinish: () => void }) {
-  const scale = useSharedValue(0.8)
-  const opacity = useSharedValue(0)
-  const translateY = useSharedValue(20)
-  const glowOpacity = useSharedValue(0)
+  const [phaseIndex, setPhaseIndex] = useState(0)
+
+  // Logo elements
+  const logoOpacity = useSharedValue(0)
+  const logoY = useSharedValue(24)
+
+  // Blob behind logo
+  const blobScale = useSharedValue(0.5)
+  const blobOpacity = useSharedValue(0)
+
+  // Shimmer progress bar
+  const shimmerX = useSharedValue(-SHIMMER_W)
+
+  // Phase text fade
+  const phaseOpacity = useSharedValue(1)
+
+  // Screen fade-out
+  const screenOpacity = useSharedValue(1)
 
   useEffect(() => {
-    fireSplashHaptics()
-
     // Logo entrance
-    scale.value = withSpring(1, { damping: 12, stiffness: 90 })
-    opacity.value = withTiming(1, { duration: 800 })
-    translateY.value = withSpring(0, { damping: 12 })
-    
-    // Glow effect
-    glowOpacity.value = withDelay(400, withTiming(0.6, { duration: 1000 }))
+    logoOpacity.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) })
+    logoY.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.cubic) })
 
-    // Exit animation after delay
-    const timeout = setTimeout(() => {
-      scale.value = withTiming(1.2, { duration: 400, easing: Easing.in(Easing.cubic) })
-      opacity.value = withTiming(0, { duration: 300 }, (finished) => {
-        if (finished) {
-          runOnJS(onFinish)()
-        }
+    // Blob pulse loop: scale 0.5 → 1.5, opacity 0 → 0.2
+    blobScale.value = withRepeat(
+      withSequence(
+        withTiming(1.5, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.5, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    blobOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.22, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.05, { duration: 2400, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+
+    // Shimmer: translateX -SHIMMER_W → TRACK_W + SHIMMER_W, 1.8s loop
+    shimmerX.value = withRepeat(
+      withTiming(TRACK_W + SHIMMER_W, { duration: 1800, easing: Easing.linear }),
+      -1,
+      false,
+    )
+
+    // Phase text transitions
+    const t1 = setTimeout(() => {
+      phaseOpacity.value = withTiming(0, { duration: 220 }, (done) => {
+        if (!done) return
+        runOnJS(setPhaseIndex)(1)
+        phaseOpacity.value = withTiming(1, { duration: 220 })
       })
-    }, 2500)
+    }, 1200)
 
-    return () => clearTimeout(timeout)
+    const t2 = setTimeout(() => {
+      phaseOpacity.value = withTiming(0, { duration: 220 }, (done) => {
+        if (!done) return
+        runOnJS(setPhaseIndex)(2)
+        phaseOpacity.value = withTiming(1, { duration: 220 })
+      })
+    }, 2400)
+
+    // Exit: haptic + 400ms fade-out
+    const exitTimer = setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+      screenOpacity.value = withTiming(0, { duration: 400 }, (done) => {
+        if (done) runOnJS(onFinish)()
+      })
+    }, 3600)
+
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(exitTimer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }))
   const logoStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }, { translateY: translateY.value }],
-    opacity: opacity.value,
+    opacity: logoOpacity.value,
+    transform: [{ translateY: logoY.value }],
   }))
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [{ scale: 1.5 }],
+  const blobStyle = useAnimatedStyle(() => ({
+    opacity: blobOpacity.value,
+    transform: [{ scale: blobScale.value }],
   }))
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmerX.value }],
+  }))
+  const phaseStyle = useAnimatedStyle(() => ({ opacity: phaseOpacity.value }))
 
   return (
-    <View style={styles.splash}>
-      <Animated.View style={[styles.glowContainer, glowStyle]}>
-        <View style={styles.glow} />
+    <Animated.View style={[styles.splash, screenStyle]}>
+      {/* Animated glow blob behind logo */}
+      <Animated.View style={[styles.blob, blobStyle]} />
+
+      {/* Logo text: "Ритуал aura" */}
+      <Animated.View style={[styles.logoWrap, logoStyle]}>
+        <Text style={styles.logoText}>
+          {'Ритуал '}
+          <Text style={styles.logoItalic}>aura</Text>
+        </Text>
       </Animated.View>
-      <Animated.View style={logoStyle}>
-        <Logo width={160} height={144} animated />
+
+      {/* Progress bar + phase text */}
+      <Animated.View style={[styles.progressSection, logoStyle]}>
+        <View style={styles.track}>
+          <Animated.View style={[styles.shimmer, shimmerStyle]} />
+        </View>
+        <Animated.Text style={[styles.phaseText, phaseStyle]}>
+          {PHASE_TEXTS[phaseIndex]}
+        </Animated.Text>
       </Animated.View>
-    </View>
+    </Animated.View>
   )
 }
 
+// ─── Root Navigator ────────────────────────────────────────────────────────────
 function RootNavigator() {
   const { isLoading, isOnboarded, hydrate } = useAuthStore()
   const [splashDone, setSplashDone] = useState(false)
@@ -150,27 +214,63 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#0D0A0F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glowContainer: {
+  blob: {
     position: 'absolute',
-    width: width,
-    height: width,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glow: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: width * 0.85,
+    height: width * 0.85,
+    borderRadius: width * 0.425,
     backgroundColor: Colors.accent,
-    opacity: 0.15,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 60,
-    elevation: 20,
+    shadowOpacity: 0.9,
+    shadowRadius: 80,
+    elevation: 40,
+  },
+  logoWrap: {
+    alignItems: 'center',
+  },
+  logoText: {
+    fontFamily: Fonts.display,
+    fontSize: 56,
+    color: '#FFFFFF',
+    letterSpacing: -1,
+    textAlign: 'center',
+  },
+  logoItalic: {
+    fontFamily: Fonts.displayItalic,
+    fontStyle: 'italic',
+    fontWeight: '300',
+    color: 'rgba(255,255,255,0.60)',
+  },
+  progressSection: {
+    position: 'absolute',
+    bottom: 80,
+    alignItems: 'center',
+    gap: 12,
+  },
+  track: {
+    width: TRACK_W,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  shimmer: {
+    width: SHIMMER_W,
+    height: '100%',
+    backgroundColor: 'rgba(245,242,237,0.35)',
+    borderRadius: 1,
+  },
+  phaseText: {
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.28)',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 })
