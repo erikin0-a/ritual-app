@@ -17,7 +17,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Fonts } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
 
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: 'rgba(0,0,0,0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: Colors.glassBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },

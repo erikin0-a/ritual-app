@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   primary: {
     backgroundColor: Colors.accent,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Colors.glassBorder,
     shadowColor: Colors.accent,
     shadowOpacity: 0.24,
     shadowRadius: 22,

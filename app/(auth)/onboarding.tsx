@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Colors.glass,
   },
   secondaryBtnText: {
     color: 'rgba(255,255,255,0.35)',
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: Colors.glassBorder,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   genderPillActive: {

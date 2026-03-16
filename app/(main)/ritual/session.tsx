@@ -950,7 +950,7 @@ const dimmingStyles = StyleSheet.create({
   progressTrack: {
     width: 120,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: Colors.glass,
     borderRadius: 999,
     overflow: 'hidden' as const,
   },

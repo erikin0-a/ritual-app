@@ -10,7 +10,7 @@ import Animated, {
   FadeInDown,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
-import { Fonts } from '@/constants/theme'
+import { Colors, Fonts } from '@/constants/theme'
 
 const { height: SCREEN_H } = Dimensions.get('window')
 
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 50,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: Colors.glassBorder,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',

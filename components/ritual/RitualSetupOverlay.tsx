@@ -276,7 +276,7 @@ const rouletteStyles = StyleSheet.create({
     borderRadius: 84,
     backgroundColor: 'rgba(13,10,15,0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Colors.glass,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -317,7 +317,7 @@ const choiceStyles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Colors.glass,
   },
   cardActive: {
     backgroundColor: 'rgba(194,24,91,0.14)',
