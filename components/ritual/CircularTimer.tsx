@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import { Pause, Play, SkipForward } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
-import { BorderRadius, Colors, SemanticColors, Spacing, Typography } from '@/constants/theme'
+import { BorderRadius, Colors, Fonts, SemanticColors, Spacing, Typography } from '@/constants/theme'
 import type { RoundId } from '@/types'
 
 // Ring color evolves across rounds: white (R1) → accent (R2-3) → deep rose (R4-5)
@@ -219,10 +219,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   timeText: {
-    fontSize: 50,
-    fontWeight: '200' as const,
+    fontFamily: Fonts.display,
+    fontSize: 48,
+    fontWeight: '400' as const,
     color: Colors.text,
-    fontVariant: ['tabular-nums'],
     letterSpacing: 1,
   },
   metaLabel: {
