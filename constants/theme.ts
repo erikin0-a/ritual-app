@@ -21,6 +21,8 @@ export const Colors = {
   textSecondary: 'rgba(245, 240, 242, 0.62)',
   textMuted: 'rgba(245, 240, 242, 0.38)',
   textInverse: '#0D080A',
+  glass: 'rgba(255,255,255,0.08)',
+  glassBorder: 'rgba(255,255,255,0.12)',
   surface: 'rgba(20, 13, 16, 0.88)',
   surfaceAlt: 'rgba(28, 17, 22, 0.96)',
   surfaceRaised: 'rgba(38, 22, 28, 0.98)',

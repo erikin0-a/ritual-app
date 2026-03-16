@@ -21,8 +21,8 @@ const ROUND_STROKE_COLORS = [
   'rgba(255,255,255,0.88)',
   Colors.accent,
   Colors.accent,
-  '#8B1A4A',
-  '#8B1A4A',
+  Colors.accentDark,
+  Colors.accentDark,
 ] as const
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
