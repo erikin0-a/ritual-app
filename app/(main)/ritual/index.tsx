@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, SafeAreaView, Platform } from 'react-native'
+import { View, Text, StyleSheet, Pressable, SafeAreaView } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Sparkles, Headphones, Vibrate, Wind, ArrowRight } from 'lucide-react-native'
 import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, interpolate, interpolateColor } from 'react-native-reanimated'
@@ -59,7 +59,7 @@ export default function RitualModeSelectionScreen() {
             <Pressable style={styles.backBtn} onPress={() => router.back()}>
               <ArrowRight size={16} color="rgba(255,255,255,0.7)" style={{ transform: [{ rotate: '180deg' }] }} />
             </Pressable>
-            <Text style={styles.topLabel}>ПОГРУЖЕНИЕ</Text>
+            <Text style={styles.topLabel}>УРОВЕНЬ ПОГРУЖЕНИЯ</Text>
             <View style={styles.backSpacer} />
           </Animated.View>
 
@@ -75,7 +75,7 @@ export default function RitualModeSelectionScreen() {
                 <Text style={styles.heading}>
                   Ритуал <Text style={styles.headingItalic}>depth</Text>
                 </Text>
-                <Text style={styles.sub}>Выберите глубину вашего опыта.</Text>
+                <Text style={styles.sub}>Выберите глубину вашего погружения.</Text>
               </Animated.View>
             )}
           </View>
@@ -120,7 +120,7 @@ export default function RitualModeSelectionScreen() {
                         </View>
                         <View style={styles.featureRow}>
                           <Vibrate size={14} color="rgba(255,255,255,0.3)" />
-                          <Text style={styles.featureText}>Тактильность</Text>
+                          <Text style={styles.featureText}>Синхронная тактильность</Text>
                         </View>
                         <View style={styles.featureRow}>
                           <Wind size={14} color="rgba(255,255,255,0.3)" />
@@ -135,7 +135,7 @@ export default function RitualModeSelectionScreen() {
                   </Pressable>
                 </Animated.View>
 
-                {/* Free Mode (Essential) */}
+                {/* Free Mode (Simple) */}
                 <Animated.View entering={FadeInDown.duration(700).delay(350)} style={styles.freeWrapper}>
                   <Pressable
                     style={styles.pressableArea}
@@ -144,8 +144,14 @@ export default function RitualModeSelectionScreen() {
                     onPress={() => handleSelect('free')}
                   >
                     <Animated.View style={[styles.freeCardContainer, freeStyle]}>
-                      <View>
-                        <Text style={styles.freeTitle}>Simple <Text style={styles.freeDesc}>— Базовый сенсорный опыт</Text></Text>
+                      <Text style={styles.freeTitle}>Simple</Text>
+                      <Text style={styles.freeDescBody}>
+                        Базовый сенсорный опыт. Таймер и субтитры.
+                      </Text>
+                      <View style={styles.freeFeatList}>
+                        <Text style={styles.freeFeat}>· Круговой таймер</Text>
+                        <Text style={styles.freeFeat}>· Субтитры фраз</Text>
+                        <Text style={styles.freeFeat}>· 5 раундов близости</Text>
                       </View>
                       <View style={styles.freeFooter}>
                         <Text style={styles.freeLink}>НАЧАТЬ БЕСПЛАТНО</Text>
@@ -295,35 +301,45 @@ const styles = StyleSheet.create({
   },
   freeCardContainer: {
     width: '100%',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    borderRadius: 20,
+    padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    gap: 12,
   },
   freeTitle: {
     fontFamily: Fonts.display,
-    fontSize: 20,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 24,
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: -0.3,
   },
-  freeDesc: {
+  freeDescBody: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.45)',
+    fontWeight: '300',
+    lineHeight: 19,
+  },
+  freeFeatList: {
+    gap: 6,
+    paddingBottom: 4,
+  },
+  freeFeat: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.3)',
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'San Francisco' : 'sans-serif',
+    color: 'rgba(255,255,255,0.35)',
+    fontWeight: '300',
+    letterSpacing: 0.3,
   },
   freeFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 4,
   },
   freeLink: {
     fontSize: 9,
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.55)',
     fontWeight: '600',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
   },
 })
