@@ -154,9 +154,11 @@ const styles = StyleSheet.create({
     ...Shadows.soft,
   },
   subtitleText: {
-    ...Typography.body,
+    fontSize: 18,
+    fontWeight: '400',
+    lineHeight: 27,
     textAlign: 'center',
-    color: Colors.text,
+    color: 'rgba(255,255,255,0.80)',
   },
   subtitleName: {
     color: Colors.accent,
