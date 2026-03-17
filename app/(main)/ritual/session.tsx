@@ -13,6 +13,7 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
+  runOnJS,
 } from 'react-native-reanimated'
 import { Svg, Defs, RadialGradient, Stop, Circle } from 'react-native-svg'
 import { BorderRadius, Colors, Fonts, SemanticColors, Spacing, Typography } from '@/constants/theme'
@@ -39,23 +40,52 @@ import type { GuidedBranch, RitualMode, RoundId } from '@/types'
 
 type SessionPhase = 'prelude' | 'transition' | 'setup' | 'roundPlayback' | 'completion' | 'loading'
 
+const DIMMING_PHRASES = [
+  'Приглушаем свет...',
+  'Настраиваем атмосферу...',
+  'Готовим ваш ритуал...',
+  'Почти готово...',
+]
+
 function DimmingOrb({ pct }: { pct: number }) {
-  const scale = useSharedValue(1)
-  const opacity = useSharedValue(0.72)
+  const [phraseIdx, setPhraseIdx] = useState(0)
+
+  // Breathing aura
+  const auraScale = useSharedValue(0.9)
+  const auraOpacity = useSharedValue(0.55)
+  const innerScale = useSharedValue(1)
+
+  // Text fade
+  const textOpacity = useSharedValue(1)
+
+  // Progress bar animated width
+  const barWidth = useSharedValue(pct)
 
   useEffect(() => {
-    scale.value = withRepeat(
+    barWidth.value = withTiming(pct, { duration: 600, easing: Easing.out(Easing.quad) })
+  }, [pct]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    auraScale.value = withRepeat(
       withSequence(
-        withTiming(1.08, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1.18, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.9, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
     )
-    opacity.value = withRepeat(
+    auraOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.92, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.72, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.8, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.45, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    )
+    innerScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.97, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
@@ -63,43 +93,80 @@ function DimmingOrb({ pct }: { pct: number }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
+  const nextPhrase = useCallback(() => {
+    setPhraseIdx(i => (i + 1) % DIMMING_PHRASES.length)
+  }, [])
+
+  useEffect(() => {
+    const interval = globalThis.setInterval(() => {
+      textOpacity.value = withTiming(0, { duration: 350 }, (done) => {
+        if (!done) return
+        runOnJS(nextPhrase)()
+        textOpacity.value = withTiming(1, { duration: 500 })
+      })
+    }, 2200)
+    return () => globalThis.clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextPhrase])
+
+  const auraStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: auraScale.value }],
+    opacity: auraOpacity.value,
   }))
+  const innerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: innerScale.value }],
+  }))
+  const phraseStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value }))
+  const barStyle = useAnimatedStyle(() => ({ width: `${barWidth.value}%` as unknown as number }))
 
   return (
     <View style={dimmingStyles.screen}>
-      <Animated.View entering={FadeIn.duration(800)} style={dimmingStyles.orbWrap}>
-        <Animated.View style={[dimmingStyles.orbAnim, animStyle]}>
-          <Svg width={240} height={240}>
+      <LiquidBackground intensity={0.6} />
+
+      {/* Центральная аура */}
+      <Animated.View entering={FadeIn.duration(1000)} style={dimmingStyles.orbWrap}>
+        {/* Внешнее свечение */}
+        <Animated.View style={[dimmingStyles.aura, auraStyle]}>
+          <Svg width={320} height={320}>
             <Defs>
-              <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor="#A4737E" stopOpacity={0.8} />
-                <Stop offset="55%" stopColor="#553A41" stopOpacity={0.5} />
+              <RadialGradient id="outerGlow" cx="50%" cy="50%" r="50%">
+                <Stop offset="0%" stopColor={Colors.accent} stopOpacity={0.35} />
+                <Stop offset="50%" stopColor="#553A41" stopOpacity={0.18} />
                 <Stop offset="100%" stopColor="#070304" stopOpacity={0} />
               </RadialGradient>
             </Defs>
-            <Circle cx={120} cy={120} r={120} fill="url(#glow)" />
-            <Circle
-              cx={120}
-              cy={120}
-              r={92}
-              fill="none"
-              stroke="rgba(255,255,255,0.15)"
-              strokeWidth={1}
-            />
+            <Circle cx={160} cy={160} r={160} fill="url(#outerGlow)" />
+          </Svg>
+        </Animated.View>
+
+        {/* Внутренняя сфера */}
+        <Animated.View style={[dimmingStyles.innerOrb, innerStyle]}>
+          <Svg width={120} height={120}>
+            <Defs>
+              <RadialGradient id="innerGrad" cx="40%" cy="35%" r="60%">
+                <Stop offset="0%" stopColor="rgba(255,255,255,0.22)" stopOpacity={1} />
+                <Stop offset="45%" stopColor={Colors.accent} stopOpacity={0.6} />
+                <Stop offset="100%" stopColor="#2A0F17" stopOpacity={0.9} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx={60} cy={60} r={60} fill="url(#innerGrad)" />
           </Svg>
         </Animated.View>
       </Animated.View>
 
-      <Animated.View entering={FadeIn.duration(1200).delay(600)} style={dimmingStyles.textBlock}>
-        <Text style={dimmingStyles.statusText}>НАСТРАИВАЕМ АТМОСФЕРУ...</Text>
-        {pct < 100 && (
-          <View style={dimmingStyles.progressTrack}>
-            <View style={[dimmingStyles.progressFill, { width: `${Math.max(pct, 6)}%` }]} />
-          </View>
-        )}
+      {/* Текстовый блок */}
+      <Animated.View entering={FadeIn.duration(800).delay(700)} style={dimmingStyles.textBlock}>
+        <Text style={dimmingStyles.logoText}>РИТУАЛ</Text>
+        <Animated.Text style={[dimmingStyles.phraseText, phraseStyle]}>
+          {DIMMING_PHRASES[phraseIdx]}
+        </Animated.Text>
+      </Animated.View>
+
+      {/* Прогресс-линия */}
+      <Animated.View entering={FadeIn.duration(600).delay(1000)} style={dimmingStyles.progressWrap}>
+        <View style={dimmingStyles.progressTrack}>
+          <Animated.View style={[dimmingStyles.progressFill, barStyle]} />
+        </View>
       </Animated.View>
     </View>
   )
@@ -347,7 +414,10 @@ export default function RitualSessionScreen() {
       try {
         await configureAudio()
         setVoiceParticipants(ritualParticipants)
-        await Promise.all([preloadAllGuided(), preloadRound(1)])
+        // 12s safety timeout — if any network fetch hangs (e.g. on iOS simulator),
+        // we still enter the session rather than freezing forever.
+        const timeout = new Promise<void>((resolve) => globalThis.setTimeout(resolve, 12_000))
+        await Promise.race([Promise.all([preloadAllGuided(), preloadRound(1)]), timeout])
       } finally {
         if (mounted) {
           setWarmupReady(true)
@@ -561,10 +631,13 @@ export default function RitualSessionScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null)
     }
 
+    // Short delay: voiceover has already finished by this point (RitualIntro
+    // waits for it), so we only need a brief window for the haptic + consent
+    // cue to register before the session transitions forward.
     const timer = globalThis.setTimeout(() => {
       setConsentCompleted(false)
       startSessionRuntime()
-    }, GUIDED_CONSENT_SUCCESS_CUE.delayMs)
+    }, 800)
     preludeTimersRef.current.push(timer)
   }, [cleanupPreludeAudio, consentCompleted, playCue, startSessionRuntime, warmupReady])
 
@@ -924,33 +997,54 @@ const dimmingStyles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.xxl,
-    paddingBottom: 60,
+    gap: 32,
   },
   orbWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: 320,
+    height: 320,
   },
-  orbAnim: {
+  aura: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  innerOrb: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
   textBlock: {
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: 10,
   },
-  statusText: {
+  logoText: {
     fontFamily: Fonts.display,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '300' as const,
-    color: 'rgba(245, 240, 242, 0.38)',
-    letterSpacing: 3.5,
+    color: 'rgba(245, 240, 242, 0.35)',
+    letterSpacing: 6,
     textTransform: 'uppercase' as const,
   },
+  phraseText: {
+    fontFamily: Fonts.display,
+    fontSize: 16,
+    fontWeight: '300' as const,
+    color: 'rgba(245, 240, 242, 0.75)',
+    letterSpacing: 0.3,
+  },
+  progressWrap: {
+    position: 'absolute',
+    bottom: 56,
+    left: 48,
+    right: 48,
+    alignItems: 'center',
+  },
   progressTrack: {
-    width: 120,
+    width: '100%',
     height: 1,
-    backgroundColor: Colors.glass,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 999,
     overflow: 'hidden' as const,
   },
@@ -958,5 +1052,6 @@ const dimmingStyles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.accent,
     borderRadius: 999,
+    opacity: 0.7,
   },
 })
