@@ -13,9 +13,7 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
-  runOnJS,
 } from 'react-native-reanimated'
-import { Svg, Defs, RadialGradient, Stop, Circle } from 'react-native-svg'
 import { BorderRadius, Colors, Fonts, SemanticColors, Spacing, Typography } from '@/constants/theme'
 import { FINAL_MESSAGE } from '@/constants/ritual-content'
 import {
@@ -50,15 +48,8 @@ const DIMMING_PHRASES = [
 function DimmingOrb({ pct }: { pct: number }) {
   const [phraseIdx, setPhraseIdx] = useState(0)
 
-  // Breathing aura
-  const auraScale = useSharedValue(0.9)
-  const auraOpacity = useSharedValue(0.55)
-  const innerScale = useSharedValue(1)
-
-  // Text fade
-  const textOpacity = useSharedValue(1)
-
-  // Progress bar animated width
+  const titleOpacity = useSharedValue(0.35)
+  const phraseOpacity = useSharedValue(1)
   const barWidth = useSharedValue(pct)
 
   useEffect(() => {
@@ -66,104 +57,44 @@ function DimmingOrb({ pct }: { pct: number }) {
   }, [pct]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    auraScale.value = withRepeat(
+    // Breath pulse on title
+    titleOpacity.value = withRepeat(
       withSequence(
-        withTiming(1.18, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.9, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.65, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.22, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
     )
-    auraOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.8, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.45, { duration: 3800, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    )
-    innerScale.value = withRepeat(
-      withSequence(
-        withTiming(1.04, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.97, { duration: 2600, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  const nextPhrase = useCallback(() => {
-    setPhraseIdx(i => (i + 1) % DIMMING_PHRASES.length)
-  }, [])
-
-  useEffect(() => {
+    // Phrase cycling — plain JS timer, no runOnJS needed
     const interval = globalThis.setInterval(() => {
-      textOpacity.value = withTiming(0, { duration: 350 }, (done) => {
-        if (!done) return
-        runOnJS(nextPhrase)()
-        textOpacity.value = withTiming(1, { duration: 500 })
-      })
+      phraseOpacity.value = withTiming(0, { duration: 350 })
+      globalThis.setTimeout(() => {
+        setPhraseIdx(i => (i + 1) % DIMMING_PHRASES.length)
+        phraseOpacity.value = withTiming(1, { duration: 500 })
+      }, 350)
     }, 2200)
     return () => globalThis.clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextPhrase])
+  }, [])
 
-  const auraStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: auraScale.value }],
-    opacity: auraOpacity.value,
-  }))
-  const innerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: innerScale.value }],
-  }))
-  const phraseStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value }))
+  const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }))
+  const phraseStyle = useAnimatedStyle(() => ({ opacity: phraseOpacity.value }))
   const barStyle = useAnimatedStyle(() => ({ width: `${barWidth.value}%` as unknown as number }))
 
   return (
     <View style={dimmingStyles.screen}>
       <LiquidBackground intensity={0.6} />
 
-      {/* Центральная аура */}
-      <Animated.View entering={FadeIn.duration(1000)} style={dimmingStyles.orbWrap}>
-        {/* Внешнее свечение */}
-        <Animated.View style={[dimmingStyles.aura, auraStyle]}>
-          <Svg width={320} height={320}>
-            <Defs>
-              <RadialGradient id="outerGlow" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={Colors.accent} stopOpacity={0.35} />
-                <Stop offset="50%" stopColor="#553A41" stopOpacity={0.18} />
-                <Stop offset="100%" stopColor="#070304" stopOpacity={0} />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={160} cy={160} r={160} fill="url(#outerGlow)" />
-          </Svg>
-        </Animated.View>
-
-        {/* Внутренняя сфера */}
-        <Animated.View style={[dimmingStyles.innerOrb, innerStyle]}>
-          <Svg width={120} height={120}>
-            <Defs>
-              <RadialGradient id="innerGrad" cx="40%" cy="35%" r="60%">
-                <Stop offset="0%" stopColor="rgba(255,255,255,0.22)" stopOpacity={1} />
-                <Stop offset="45%" stopColor={Colors.accent} stopOpacity={0.6} />
-                <Stop offset="100%" stopColor="#2A0F17" stopOpacity={0.9} />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={60} cy={60} r={60} fill="url(#innerGrad)" />
-          </Svg>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Текстовый блок */}
-      <Animated.View entering={FadeIn.duration(800).delay(700)} style={dimmingStyles.textBlock}>
-        <Text style={dimmingStyles.logoText}>РИТУАЛ</Text>
+      <Animated.View entering={FadeIn.duration(900).delay(200)} style={dimmingStyles.centerBlock}>
+        <Animated.Text style={[dimmingStyles.titleText, titleStyle]}>Ритуал</Animated.Text>
         <Animated.Text style={[dimmingStyles.phraseText, phraseStyle]}>
           {DIMMING_PHRASES[phraseIdx]}
         </Animated.Text>
       </Animated.View>
 
-      {/* Прогресс-линия */}
-      <Animated.View entering={FadeIn.duration(600).delay(1000)} style={dimmingStyles.progressWrap}>
+      <Animated.View entering={FadeIn.duration(600).delay(700)} style={dimmingStyles.progressWrap}>
         <View style={dimmingStyles.progressTrack}>
           <Animated.View style={[dimmingStyles.progressFill, barStyle]} />
         </View>
@@ -997,49 +928,30 @@ const dimmingStyles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 32,
   },
-  orbWrap: {
+  centerBlock: {
     alignItems: 'center',
-    justifyContent: 'center',
-    width: 320,
-    height: 320,
+    gap: 18,
   },
-  aura: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  innerOrb: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textBlock: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoText: {
-    fontFamily: Fonts.display,
-    fontSize: 13,
-    fontWeight: '300' as const,
-    color: 'rgba(245, 240, 242, 0.35)',
-    letterSpacing: 6,
-    textTransform: 'uppercase' as const,
+  titleText: {
+    fontFamily: Fonts.displayItalic,
+    fontSize: 52,
+    color: '#ffffff',
+    letterSpacing: 0.2,
   },
   phraseText: {
-    fontFamily: Fonts.display,
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: '300' as const,
-    color: 'rgba(245, 240, 242, 0.75)',
-    letterSpacing: 0.3,
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase' as const,
+    textAlign: 'center' as const,
   },
   progressWrap: {
     position: 'absolute',
     bottom: 56,
     left: 48,
     right: 48,
-    alignItems: 'center',
   },
   progressTrack: {
     width: '100%',
