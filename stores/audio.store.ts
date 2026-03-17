@@ -22,6 +22,7 @@ import type { GuidedBranch, ParticipantId, RitualParticipants, RoundId } from '@
 
 let guidedLibraryPreloadPromise: Promise<void> | null = null
 const roundPreloadPromises = new Map<RoundId, Promise<void>>()
+let isTickInFlight = false
 
 interface AudioStore {
   // State
@@ -242,63 +243,76 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   },
 
   tick: async (elapsed) => {
-    const { currentRoundId, nextCueIndex, isPaused, voiceParticipants, roundBranches } = get()
+    // Always update elapsed so the UI stays in sync even if we skip processing.
+    set({ elapsedSeconds: elapsed })
+
+    const { currentRoundId, isPaused } = get()
     if (!currentRoundId || isPaused) return
+
+    // Guard against concurrent tick calls — only one may fire cues at a time.
+    if (isTickInFlight) return
 
     const track = getAudioTrack(currentRoundId)
     if (!track) return
 
-    set({ elapsedSeconds: elapsed })
+    isTickInFlight = true
+    try {
+      // Re-read nextCueIndex after acquiring the guard so we see any updates
+      // from a previous tick that completed just before us.
+      let idx = get().nextCueIndex
+      const { voiceParticipants, roundBranches } = get()
 
-    let idx = nextCueIndex
-    while (idx < track.cues.length && track.cues[idx].offsetSeconds <= elapsed) {
-      const cue = track.cues[idx]
-      const branch = roundBranches[currentRoundId]
-      const variant = getCueVariant(cue, branch)
-      const resolvedVoiceKey = variant?.voiceKey ?? cue.voiceKey
-      const resolvedSubtitle = variant?.subtitle ?? cue.subtitle
-      const resolvedParticipants = variant?.highlightedParticipants ?? cue.highlightedParticipants
-      idx += 1
-      set({ nextCueIndex: idx })
+      while (idx < track.cues.length && track.cues[idx].offsetSeconds <= elapsed) {
+        const cue = track.cues[idx]
+        const branch = roundBranches[currentRoundId]
+        const variant = getCueVariant(cue, branch)
+        const resolvedVoiceKey = variant?.voiceKey ?? cue.voiceKey
+        const resolvedSubtitle = variant?.subtitle ?? cue.subtitle
+        const resolvedParticipants = variant?.highlightedParticipants ?? cue.highlightedParticipants
+        idx += 1
+        set({ nextCueIndex: idx })
 
-      if (cue.type === 'voice' && resolvedVoiceKey) {
-        const fallbackSubtitle = resolvedSubtitle
-          ? renderParticipantTemplate(resolvedSubtitle, voiceParticipants)
-          : undefined
+        if (cue.type === 'voice' && resolvedVoiceKey) {
+          const fallbackSubtitle = resolvedSubtitle
+            ? renderParticipantTemplate(resolvedSubtitle, voiceParticipants)
+            : undefined
 
-        set({
-          currentCue: {
-            ...cue,
-            voiceKey: resolvedVoiceKey,
-            subtitle: fallbackSubtitle,
-            highlightedParticipants: resolvedParticipants,
-          },
-        })
-
-        const manifest = await AudioService.playVoice(resolvedVoiceKey ?? cue.fallbackUri ?? '', {
-          participants: voiceParticipants,
-          fallbackUri: cue.fallbackUri,
-          subtitleTemplate: resolvedSubtitle,
-          highlightedParticipants: resolvedParticipants,
-        })
-
-        if (manifest) {
           set({
             currentCue: {
               ...cue,
               voiceKey: resolvedVoiceKey,
-              subtitle: manifest.subtitleText,
-              highlightedParticipants: manifest.highlightedParticipants,
+              subtitle: fallbackSubtitle,
+              highlightedParticipants: resolvedParticipants,
             },
           })
-        }
 
-        globalThis.setTimeout(() => {
-          if (get().currentCue?.voiceKey === resolvedVoiceKey) {
-            get().clearSubtitle()
+          const manifest = await AudioService.playVoice(resolvedVoiceKey ?? cue.fallbackUri ?? '', {
+            participants: voiceParticipants,
+            fallbackUri: cue.fallbackUri,
+            subtitleTemplate: resolvedSubtitle,
+            highlightedParticipants: resolvedParticipants,
+          })
+
+          if (manifest) {
+            set({
+              currentCue: {
+                ...cue,
+                voiceKey: resolvedVoiceKey,
+                subtitle: manifest.subtitleText,
+                highlightedParticipants: manifest.highlightedParticipants,
+              },
+            })
           }
-        }, getCueClearDelayMs(fallbackSubtitle))
+
+          globalThis.setTimeout(() => {
+            if (get().currentCue?.voiceKey === resolvedVoiceKey) {
+              get().clearSubtitle()
+            }
+          }, getCueClearDelayMs(fallbackSubtitle))
+        }
       }
+    } finally {
+      isTickInFlight = false
     }
   },
 

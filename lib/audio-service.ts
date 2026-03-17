@@ -35,6 +35,7 @@ const soundCache = new Map<string, Audio.Sound>()
 
 let _voiceSound: Audio.Sound | null = null
 let _musicSound: Audio.Sound | null = null
+let _musicUri: string | null = null
 let _voicePlaybackToken = 0
 let cacheReady = false
 
@@ -357,12 +358,20 @@ export const AudioService = {
     await AudioService.stopMusic()
     try {
       const playableUri = await cacheRemoteUri(uri)
-      const sound = await loadSound(playableUri)
+      const { sound, status } = await Audio.Sound.createAsync(
+        { uri: playableUri } as AVPlaybackSource,
+        { shouldPlay: false },
+      )
+      if (!status.isLoaded) {
+        await sound.unloadAsync().catch(() => null)
+        throw new Error(`Music failed to load: ${playableUri}`)
+      }
       await sound.setVolumeAsync(MUSIC_VOLUME)
       await sound.setIsLoopingAsync(true)
       await sound.setPositionAsync(0)
       await sound.playAsync()
       _musicSound = sound
+      _musicUri = playableUri
       return
     } catch {
       // Fall back to bundled ambient track when remote music is unavailable.
@@ -377,6 +386,7 @@ export const AudioService = {
       },
     )
     _musicSound = sound
+    _musicUri = null
   },
 
   async stopVoice(): Promise<void> {
@@ -391,6 +401,11 @@ export const AudioService = {
   async stopMusic(): Promise<void> {
     if (_musicSound) {
       await _musicSound.stopAsync().catch(() => null)
+      await _musicSound.unloadAsync().catch(() => null)
+      if (_musicUri) {
+        soundCache.delete(_musicUri)
+        _musicUri = null
+      }
       _musicSound = null
     }
   },
@@ -434,5 +449,6 @@ export const AudioService = {
     clearGuidedCueManifestCache()
     _voiceSound = null
     _musicSound = null
+    _musicUri = null
   },
 }
