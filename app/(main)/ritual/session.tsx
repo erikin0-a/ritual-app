@@ -108,8 +108,8 @@ function RoundEdgeFlash() {
 
   useEffect(() => {
     opacity.value = withSequence(
-      withTiming(0.6, { duration: 150 }),
-      withTiming(0, { duration: 450 }),
+      withTiming(0.4, { duration: 200 }),
+      withTiming(0, { duration: 400 }),
     )
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -192,7 +192,6 @@ export default function RitualSessionScreen() {
     startRitual,
     pauseToggle,
     tickTimer,
-    advanceRound,
     resetRitual,
   } = useRitualStore()
 
@@ -714,7 +713,6 @@ export default function RitualSessionScreen() {
             isPaused={isPaused}
             roundIndex={currentRound ?? 1}
             onPauseToggle={pauseToggle}
-            onSkip={advanceRound}
           />
         </View>
 
@@ -729,30 +727,6 @@ export default function RitualSessionScreen() {
           ) : null}
         </View>
 
-        {/* ── Compact rules bar ── */}
-        <View style={styles.rulesBar}>
-          <View style={styles.ruleSection}>
-            <Text style={styles.ruleSectionLabel}>МОЖНО</Text>
-            <View style={styles.pillRow}>
-              {round.allowed.map((item) => (
-                <View key={item} style={[styles.pill, styles.allowedPill]}>
-                  <Text style={[styles.pillText, styles.allowedText]}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          <View style={styles.ruleDivider} />
-          <View style={styles.ruleSection}>
-            <Text style={styles.ruleSectionLabel}>НЕЛЬЗЯ</Text>
-            <View style={styles.pillRow}>
-              {round.forbidden.map((item) => (
-                <View key={item} style={[styles.pill, styles.forbiddenPill]}>
-                  <Text style={[styles.pillText, styles.forbiddenText]}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
       </View>
 
       {resolvedMode === 'guided' && <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />}
@@ -852,56 +826,6 @@ const styles = StyleSheet.create({
   activeLeaderName: {
     color: Colors.text,
     fontWeight: '600',
-  },
-  rulesBar: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: Spacing.md,
-    gap: Spacing.sm,
-  },
-  ruleSection: {
-    gap: 8,
-  },
-  ruleSectionLabel: {
-    fontSize: 8,
-    letterSpacing: 2.5,
-    color: 'rgba(255,255,255,0.25)',
-    fontWeight: '600',
-  },
-  ruleDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  allowedPill: {
-    backgroundColor: 'rgba(141, 216, 176, 0.10)',
-    borderColor: 'rgba(141, 216, 176, 0.18)',
-  },
-  forbiddenPill: {
-    backgroundColor: 'rgba(194,24,91,0.09)',
-    borderColor: 'rgba(194,24,91,0.18)',
-  },
-  pillText: {
-    fontSize: 11,
-    fontWeight: '400',
-  },
-  allowedText: {
-    color: Colors.success,
-  },
-  forbiddenText: {
-    color: Colors.accent,
   },
   transitionFlash: {
     ...StyleSheet.absoluteFillObject,
