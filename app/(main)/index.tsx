@@ -1,62 +1,68 @@
-import { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, Pressable, ImageBackground, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
 import { Lock } from 'lucide-react-native'
 import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedScrollHandler,
-  interpolate,
   withTiming,
   FadeIn,
-  FadeInDown,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LiquidBackground } from '@/components/ui/LiquidBackground'
-import { Skeleton } from '@/components/ui/Skeleton'
 import { Colors, Fonts } from '@/constants/theme'
 
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
+const EDGE_PAD = 16
+const TILE_GAP = 8
+const WIDE_H = 90
 
-const { height: SCREEN_H } = Dimensions.get('window')
-const CARD_HEIGHT = SCREEN_H * 0.5
+interface TileData {
+  id: string
+  title: string
+  desc: string
+  active: boolean
+  gradient: [string, string]
+  route: string | null
+}
 
-const modes = [
+const GRID_TILES: TileData[] = [
   {
     id: 'ritual',
     title: 'Ритуал',
-    desc: 'Направляемое путешествие для двоих',
+    desc: 'Ведомое путешествие',
     active: true,
-    image: require('@/assets/images/ritual-card.png'),
+    gradient: ['#1A0A0F', '#2D1520'],
+    route: '/(main)/ritual',
   },
   {
     id: 'dice',
     title: 'Случайность',
-    desc: 'Доверьтесь воле случая',
+    desc: 'Воля случая',
     active: false,
-    image: require('@/assets/images/chance-card.png'),
+    gradient: ['#0A0A1A', '#151528'],
+    route: null,
   },
   {
     id: 'stories',
     title: 'Фантазии',
-    desc: 'Сюжетные ролевые погружения',
+    desc: 'Ролевые погружения',
     active: false,
-    image: require('@/assets/images/chance-card.png'),
+    gradient: ['#0A0F1A', '#152024'],
+    route: null,
+  },
+  {
+    id: 'soon',
+    title: 'Скоро...',
+    desc: '',
+    active: false,
+    gradient: ['#0D0D0D', '#151515'],
+    route: null,
   },
 ]
 
-function ModeCard({
-  mode,
-  index,
-  router,
-}: {
-  mode: (typeof modes)[0]
-  index: number
-  router: ReturnType<typeof useRouter>
-}) {
+// ─── Grid Tile ────────────────────────────────────────────────────────────────
+
+function GridTile({ tile, router }: { tile: TileData; router: ReturnType<typeof useRouter> }) {
   const scale = useSharedValue(1)
 
   const pressStyle = useAnimatedStyle(() => ({
@@ -64,243 +70,236 @@ function ModeCard({
   }))
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 180).duration(900).springify().damping(22)}
-      style={pressStyle}
-    >
+    <Animated.View style={[pressStyle, styles.tile]}>
       <Pressable
+        style={StyleSheet.absoluteFill}
         onPressIn={() => {
-          if (mode.active) scale.value = withTiming(0.985, { duration: 140 })
+          if (tile.active) scale.value = withTiming(0.96, { duration: 120 })
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 260 })
+          scale.value = withTiming(1, { duration: 240 })
         }}
         onPress={() => {
-          if (!mode.active) return
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
-          router.push(`/(main)/${mode.id}` as never)
+          if (!tile.active || !tile.route) return
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null)
+          router.push(tile.route as never)
         }}
       >
-        <View style={[styles.card, !mode.active && styles.cardLocked]}>
-          <ImageBackground
-            source={mode.image}
-            style={styles.cardImage}
-            resizeMode="cover"
-          >
-            {/* Bottom-up gradient overlay */}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
-              locations={[0.3, 0.65, 1]}
-              style={StyleSheet.absoluteFill}
-            />
+        <LinearGradient
+          colors={tile.gradient}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={[StyleSheet.absoluteFill, styles.tileBorder]} pointerEvents="none" />
 
-            {/* Lock badge — top right */}
-            {!mode.active && (
-              <View style={styles.lockBadge}>
-                <Lock color="rgba(255,255,255,0.55)" size={13} />
-              </View>
-            )}
-
-            {/* Card content — bottom */}
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{mode.title}</Text>
-              <Text style={styles.cardDesc}>{mode.desc}</Text>
-              {mode.active && (
-                <View style={styles.startRow}>
-                  <View style={styles.startDash} />
-                  <Text style={styles.startLabel}>НАЧАТЬ</Text>
-                </View>
-              )}
+        {!tile.active && (
+          <>
+            <View style={[StyleSheet.absoluteFill, styles.lockedOverlay]} pointerEvents="none" />
+            <View style={styles.lockIconWrap} pointerEvents="none">
+              <Lock size={14} color="rgba(255,255,255,0.28)" strokeWidth={1.5} />
             </View>
-          </ImageBackground>
+            <Text style={styles.soonLabel} pointerEvents="none">СКОРО</Text>
+          </>
+        )}
+
+        <View style={styles.tileContent} pointerEvents="none">
+          <Text style={styles.tileName}>{tile.title}</Text>
+          {tile.desc ? <Text style={styles.tileDesc}>{tile.desc}</Text> : null}
         </View>
       </Pressable>
     </Animated.View>
   )
 }
 
-export default function ModesHubScreen() {
-  const router = useRouter()
-  const insets = useSafeAreaInsets()
-  const [isLoading, setIsLoading] = useState(true)
-  const scrollY = useSharedValue(0)
+// ─── Wide Tile ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    const timer = globalThis.setTimeout(() => setIsLoading(false), 500)
-    return () => globalThis.clearTimeout(timer)
-  }, [])
-
-  const scrollHandler = useAnimatedScrollHandler((event) => {
-    scrollY.value = event.contentOffset.y
-  })
-
-  const headerBlurStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [0, 80], [0, 1], 'clamp'),
-  }))
-
-  const headerHeight = insets.top + 100
-
+function WideTile() {
   return (
-    <View style={styles.container}>
-      <LiquidBackground />
-
-      {/* Floating header — fixed over ScrollView */}
-      <Animated.View
-        entering={FadeIn.duration(1200)}
-        style={[styles.header, { paddingTop: insets.top + 24, height: headerHeight }]}
-      >
-        {/* Backdrop blur + dark overlay — fades in at scroll > 80 */}
-        <AnimatedBlurView
-          intensity={20}
-          tint="dark"
-          style={[StyleSheet.absoluteFill, headerBlurStyle]}
-          pointerEvents="none"
-        />
-        <Animated.View
-          style={[StyleSheet.absoluteFill, styles.headerOverlay, headerBlurStyle]}
-          pointerEvents="none"
-        />
-        {isLoading ? (
-          <View style={{ gap: 16 }}>
-            <Skeleton style={{ width: 100, height: 10 }} />
-            <Skeleton style={{ width: 220, height: 40 }} />
-          </View>
-        ) : (
-          <View>
-            <Text style={styles.subtitle}>КОЛЛЕКЦИЯ</Text>
-            <Text style={styles.title}>
-              Погружения <Text style={styles.titleItalic}>aura</Text>
-            </Text>
-          </View>
-        )}
-      </Animated.View>
-
-      <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight }]}
-      >
-        {isLoading ? (
-          <View style={{ gap: 16, paddingHorizontal: 20, marginTop: 16 }}>
-            <Skeleton style={{ width: '100%', height: CARD_HEIGHT, borderRadius: 24 }} />
-            <Skeleton style={{ width: '100%', height: CARD_HEIGHT, borderRadius: 24 }} />
-          </View>
-        ) : (
-          <View style={styles.cardsWrapper}>
-            {modes.map((mode, idx) => (
-              <ModeCard key={mode.id} mode={mode} index={idx} router={router} />
-            ))}
-          </View>
-        )}
-      </Animated.ScrollView>
+    <View style={styles.wideTile}>
+      <LinearGradient
+        colors={['#1A0A0F', '#0D0A0F']}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      />
+      <View style={[StyleSheet.absoluteFill, styles.tileBorder]} />
+      <View style={[StyleSheet.absoluteFill, styles.lockedOverlay]} />
+      <View style={styles.lockIconWrap}>
+        <Lock size={14} color="rgba(255,255,255,0.28)" strokeWidth={1.5} />
+      </View>
+      <Text style={styles.wideTileName}>Особое погружение</Text>
+      <Text style={styles.soonLabelRight}>СКОРО</Text>
     </View>
   )
 }
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+export default function ModesHubScreen() {
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+
+  return (
+    <Animated.View entering={FadeIn.duration(600)} style={styles.screen}>
+
+      {/* Static background blobs */}
+      <View style={styles.blobTopRight} pointerEvents="none" />
+      <View style={styles.blobBottomLeft} pointerEvents="none" />
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerLabel}>КОЛЛЕКЦИЯ</Text>
+        <View style={styles.profileCircle} />
+      </View>
+
+      {/* 2×2 grid + wide tile */}
+      <View style={[styles.grid, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+        <View style={styles.row}>
+          <GridTile tile={GRID_TILES[0]} router={router} />
+          <GridTile tile={GRID_TILES[1]} router={router} />
+        </View>
+        <View style={styles.row}>
+          <GridTile tile={GRID_TILES[2]} router={router} />
+          <GridTile tile={GRID_TILES[3]} router={router} />
+        </View>
+        <WideTile />
+      </View>
+
+    </Animated.View>
+  )
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: Colors.bg,
   },
+  // Blobs — static decorative splashes, no animation
+  blobTopRight: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: Colors.accent,
+    opacity: 0.06,
+    top: -80,
+    right: -80,
+  },
+  blobBottomLeft: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: '#4A1080',
+    opacity: 0.06,
+    bottom: -40,
+    left: -80,
+  },
   header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 28,
-    zIndex: 30,
-    justifyContent: 'flex-end',
-    paddingBottom: 20,
-    overflow: 'hidden',
-  },
-  headerOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 10,
-    letterSpacing: 4,
-    textTransform: 'uppercase',
-    fontWeight: '500',
-    marginBottom: 14,
-  },
-  title: {
-    fontSize: 36,
-    fontFamily: Fonts.display,
-    color: 'white',
-  },
-  titleItalic: {
-    fontStyle: 'italic',
-    fontWeight: '300',
-    color: 'rgba(255,255,255,0.6)',
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  cardsWrapper: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 16,
-  },
-  card: {
-    height: CARD_HEIGHT,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  cardLocked: {
-    opacity: 0.42,
-  },
-  cardImage: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  lockBadge: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardContent: {
-    paddingHorizontal: 28,
-    paddingBottom: 32,
-    gap: 8,
-  },
-  cardTitle: {
-    fontSize: 28,
-    fontFamily: Fonts.display,
-    color: '#fff',
-    letterSpacing: -0.3,
-  },
-  cardDesc: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 0.4,
-    fontWeight: '400',
-  },
-  startRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
+    justifyContent: 'space-between',
+    paddingHorizontal: EDGE_PAD,
+    paddingBottom: 12,
   },
-  startDash: {
-    width: 20,
-    height: 1,
-    backgroundColor: 'rgba(194,24,91,0.8)',
-  },
-  startLabel: {
+  headerLabel: {
     fontSize: 9,
     letterSpacing: 3,
-    color: 'rgba(194,24,91,0.85)',
-    fontWeight: '700',
+    color: 'rgba(255,255,255,0.25)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  profileCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  // Grid fills remaining space; rows flex:1 to evenly distribute height
+  grid: {
+    flex: 1,
+    paddingHorizontal: EDGE_PAD,
+    gap: TILE_GAP,
+  },
+  row: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: TILE_GAP,
+  },
+  tile: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  tileBorder: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  lockedOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 20,
+  },
+  lockIconWrap: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
+  soonLabel: {
+    position: 'absolute',
+    bottom: 10,
+    right: 12,
+    fontSize: 7,
+    letterSpacing: 3,
+    color: 'rgba(255,255,255,0.25)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  tileContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    paddingBottom: 14,
+    paddingLeft: 14,
+    gap: 4,
+  },
+  tileName: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: '#ffffff',
+    letterSpacing: 0.1,
+  },
+  tileDesc: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 1.5,
+  },
+  wideTile: {
+    height: WIDE_H,
+    borderRadius: 20,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  wideTileName: {
+    fontFamily: Fonts.display,
+    fontSize: 17,
+    color: '#ffffff',
+    paddingLeft: 18,
+    letterSpacing: 0.1,
+  },
+  soonLabelRight: {
+    position: 'absolute',
+    bottom: 10,
+    right: 14,
+    fontSize: 7,
+    letterSpacing: 3,
+    color: 'rgba(255,255,255,0.25)',
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
 })
