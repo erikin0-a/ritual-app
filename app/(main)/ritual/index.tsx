@@ -1,25 +1,27 @@
-import { View, Text, StyleSheet, Pressable, SafeAreaView } from 'react-native'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Sparkles, Headphones, Vibrate, Wind, ArrowRight } from 'lucide-react-native'
-import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, interpolate, interpolateColor } from 'react-native-reanimated'
-import { useState, useEffect } from 'react'
+import { Headphones, Vibrate, Wind, ArrowRight, Sparkles } from 'lucide-react-native'
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+  interpolateColor,
+} from 'react-native-reanimated'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Colors, Fonts } from '@/constants/theme'
 import { useSubscriptionStore } from '@/stores/subscription.store'
 import { Analytics } from '@/lib/analytics'
 import type { RitualMode } from '@/types'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
-import { Skeleton } from '@/components/ui/Skeleton'
 import { LinearGradient } from 'expo-linear-gradient'
 
 export default function RitualModeSelectionScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const isPremium = useSubscriptionStore((s) => s.isPremium())
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = globalThis.setTimeout(() => setIsLoading(false), 1200)
-    return () => globalThis.clearTimeout(timer)
-  }, [])
 
   const handleSelect = (mode: RitualMode) => {
     if (mode === 'guided') {
@@ -35,136 +37,117 @@ export default function RitualModeSelectionScreen() {
     router.push({ pathname: '/(main)/ritual/setup', params: { mode } })
   }
 
-  // Press Animations
+  const simplePressed = useSharedValue(0)
+  const simpleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(simplePressed.value, [0, 1], [1, 0.98]) }],
+    backgroundColor: interpolateColor(
+      simplePressed.value,
+      [0, 1],
+      ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.09)'],
+    ),
+  }))
+
   const privPressed = useSharedValue(0)
   const privStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(privPressed.value, [0, 1], [1, 0.98]) }],
-    borderColor: interpolateColor(privPressed.value, [0, 1], ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.2)']),
-  }))
-
-  const freePressed = useSharedValue(0)
-  const freeStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(freePressed.value, [0, 1], [1, 0.98]) }],
-    backgroundColor: interpolateColor(freePressed.value, [0, 1], ['rgba(255,255,255,0.0)', 'rgba(255,255,255,0.03)']),
   }))
 
   return (
     <View style={styles.screen}>
       <LiquidBackground />
-      
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.container}>
-          {/* Header */}
-          <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
-            <Pressable style={styles.backBtn} onPress={() => router.back()}>
-              <ArrowRight size={16} color="rgba(255,255,255,0.7)" style={{ transform: [{ rotate: '180deg' }] }} />
+
+      <View style={[styles.content, { paddingTop: insets.top + 12 }]}>
+
+        {/* Back button */}
+        <Animated.View entering={FadeIn.duration(300)} style={styles.backRow}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <ArrowRight
+              size={16}
+              color="rgba(255,255,255,0.7)"
+              style={{ transform: [{ rotate: '180deg' }] }}
+            />
+          </Pressable>
+        </Animated.View>
+
+        {/* Title block */}
+        <Animated.View entering={FadeIn.duration(500).delay(60)} style={styles.titleBlock}>
+          <Text style={styles.heading}>РИТУАЛ</Text>
+          <Text style={styles.sub}>Выберите глубину{'\n'}вашего погружения.</Text>
+        </Animated.View>
+
+        {/* Cards */}
+        <View style={styles.cards}>
+
+          {/* Simple (Free) */}
+          <Animated.View entering={FadeInDown.duration(600).delay(100)}>
+            <Pressable
+              onPressIn={() => { simplePressed.value = withTiming(1, { duration: 120 }) }}
+              onPressOut={() => { simplePressed.value = withTiming(0, { duration: 240 }) }}
+              onPress={() => handleSelect('free')}
+            >
+              <Animated.View style={[styles.card, styles.simpleCard, simpleStyle]}>
+                <Text style={styles.simpleTitle}>Simple</Text>
+                <Text style={styles.simpleDesc}>
+                  Базовый сенсорный опыт. Таймер и субтитры.
+                </Text>
+                <View style={styles.simpleFeatList}>
+                  <Text style={styles.simpleFeat}>· Круговой таймер</Text>
+                  <Text style={styles.simpleFeat}>· Субтитры фраз</Text>
+                  <Text style={styles.simpleFeat}>· 5 раундов близости</Text>
+                </View>
+                <View style={styles.simpleFooter}>
+                  <Text style={styles.simpleLink}>НАЧАТЬ БЕСПЛАТНО</Text>
+                  <ArrowRight size={13} color="rgba(255,255,255,0.4)" />
+                </View>
+              </Animated.View>
             </Pressable>
-            <Text style={styles.topLabel}>УРОВЕНЬ ПОГРУЖЕНИЯ</Text>
-            <View style={styles.backSpacer} />
           </Animated.View>
 
-          {/* Title Area */}
-          <View style={styles.titleArea}>
-            {isLoading ? (
-              <View style={{ gap: 8 }}>
-                <Skeleton style={{ width: 140, height: 32 }} />
-                <Skeleton style={{ width: 200, height: 12 }} />
-              </View>
-            ) : (
-              <Animated.View entering={FadeIn.duration(600).delay(100)}>
-                <Text style={styles.heading}>
-                  Ритуал <Text style={styles.headingItalic}>depth</Text>
+          {/* Privilège (Premium) */}
+          <Animated.View entering={FadeInDown.duration(600).delay(200)}>
+            <Pressable
+              onPressIn={() => { privPressed.value = withTiming(1, { duration: 120 }) }}
+              onPressOut={() => { privPressed.value = withTiming(0, { duration: 240 }) }}
+              onPress={() => handleSelect('guided')}
+            >
+              <Animated.View style={[styles.card, styles.privCard, privStyle]}>
+                <LinearGradient
+                  colors={['rgba(194,24,91,0.08)', 'transparent']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.privHeader}>
+                  <Text style={styles.privTitle}>Privilège</Text>
+                  <Sparkles size={15} color="rgba(255,255,255,0.35)" />
+                </View>
+                <Text style={styles.privDesc}>
+                  Полное сенсорное погружение. Направляющий голос,
+                  синхронизированные вибрации и адаптивный звук.
                 </Text>
-                <Text style={styles.sub}>Выберите глубину вашего погружения.</Text>
+                <View style={styles.features}>
+                  <View style={styles.featureRow}>
+                    <Headphones size={13} color="rgba(255,255,255,0.3)" />
+                    <Text style={styles.featureText}>Иммерсивный голос</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Vibrate size={13} color="rgba(255,255,255,0.3)" />
+                    <Text style={styles.featureText}>Синхронная тактильность</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Wind size={13} color="rgba(255,255,255,0.3)" />
+                    <Text style={styles.featureText}>Адаптивный звук</Text>
+                  </View>
+                </View>
+                <View style={styles.ctaBtn}>
+                  <Text style={styles.ctaText}>ОТКРЫТЬ ДОСТУП</Text>
+                </View>
               </Animated.View>
-            )}
-          </View>
+            </Pressable>
+          </Animated.View>
 
-          <View style={styles.cardsWrapper}>
-            {isLoading ? (
-              <View style={{ gap: 16 }}>
-                <Skeleton style={{ width: '100%', height: 320, borderRadius: 24 }} />
-                <Skeleton style={{ width: '100%', height: 80, borderRadius: 16 }} />
-              </View>
-            ) : (
-              <>
-                {/* Premium Mode */}
-                <Animated.View entering={FadeInDown.duration(700).delay(200)} style={styles.premiumWrapper}>
-                  <Pressable
-                    style={styles.pressableArea}
-                    onPressIn={() => { privPressed.value = withTiming(1, { duration: 150 }) }}
-                    onPressOut={() => { privPressed.value = withTiming(0, { duration: 300 }) }}
-                    onPress={() => handleSelect('guided')}
-                  >
-                    <Animated.View style={[styles.premiumCardContainer, privStyle]}>
-                      <LinearGradient
-                        colors={['rgba(255,255,255,0.03)', 'transparent']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFill}
-                      />
-                      
-                      <View style={styles.premiumHeader}>
-                        <Text style={styles.premiumTitle}>Privilège</Text>
-                        <Sparkles size={16} color="rgba(255,255,255,0.4)" />
-                      </View>
-                      
-                      <Text style={styles.premiumDesc}>
-                        Полное сенсорное погружение. Направляющий голос, синхронизированные вибрации и адаптивный звук.
-                      </Text>
-                      
-                      <View style={styles.features}>
-                        <View style={styles.featureRow}>
-                          <Headphones size={14} color="rgba(255,255,255,0.3)" />
-                          <Text style={styles.featureText}>Иммерсивный голос</Text>
-                        </View>
-                        <View style={styles.featureRow}>
-                          <Vibrate size={14} color="rgba(255,255,255,0.3)" />
-                          <Text style={styles.featureText}>Синхронная тактильность</Text>
-                        </View>
-                        <View style={styles.featureRow}>
-                          <Wind size={14} color="rgba(255,255,255,0.3)" />
-                          <Text style={styles.featureText}>Адаптивный звук</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.ctaBtn}>
-                        <Text style={styles.ctaText}>ОТКРЫТЬ ДОСТУП</Text>
-                      </View>
-                    </Animated.View>
-                  </Pressable>
-                </Animated.View>
-
-                {/* Free Mode (Simple) */}
-                <Animated.View entering={FadeInDown.duration(700).delay(350)} style={styles.freeWrapper}>
-                  <Pressable
-                    style={styles.pressableArea}
-                    onPressIn={() => { freePressed.value = withTiming(1, { duration: 150 }) }}
-                    onPressOut={() => { freePressed.value = withTiming(0, { duration: 300 }) }}
-                    onPress={() => handleSelect('free')}
-                  >
-                    <Animated.View style={[styles.freeCardContainer, freeStyle]}>
-                      <Text style={styles.freeTitle}>Simple</Text>
-                      <Text style={styles.freeDescBody}>
-                        Базовый сенсорный опыт. Таймер и субтитры.
-                      </Text>
-                      <View style={styles.freeFeatList}>
-                        <Text style={styles.freeFeat}>· Круговой таймер</Text>
-                        <Text style={styles.freeFeat}>· Субтитры фраз</Text>
-                        <Text style={styles.freeFeat}>· 5 раундов близости</Text>
-                      </View>
-                      <View style={styles.freeFooter}>
-                        <Text style={styles.freeLink}>НАЧАТЬ БЕСПЛАТНО</Text>
-                        <ArrowRight size={14} color="rgba(255,255,255,0.4)" />
-                      </View>
-                    </Animated.View>
-                  </Pressable>
-                </Animated.View>
-              </>
-            )}
-          </View>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   )
 }
@@ -174,20 +157,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bg,
   },
-  safe: {
-    flex: 1,
-  },
-  container: {
+  content: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: 'space-between',
     paddingBottom: 24,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
+  backRow: {
+    marginBottom: 4,
   },
   backBtn: {
     width: 40,
@@ -196,150 +172,130 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.10)',
   },
-  topLabel: {
-    fontSize: 9,
-    letterSpacing: 4,
-    color: 'rgba(255,255,255,0.3)',
-    textTransform: 'uppercase',
-  },
-  backSpacer: {
-    width: 40,
-  },
-  titleArea: {
-    paddingVertical: 24,
+  titleBlock: {
+    marginTop: 20,
+    gap: 8,
   },
   heading: {
     fontFamily: Fonts.display,
-    fontSize: 40,
-    color: '#fff',
-    letterSpacing: -1,
-  },
-  headingItalic: {
-    fontStyle: 'italic',
-    fontWeight: '300',
-    color: 'rgba(255,255,255,0.6)',
+    fontSize: 44,
+    color: '#ffffff',
+    letterSpacing: -0.5,
   },
   sub: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.50)',
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.45)',
     fontWeight: '300',
-    marginTop: 8,
+    lineHeight: 22,
+    letterSpacing: 0.2,
+  },
+  cards: {
+    marginTop: 32,
+    gap: 12,
+  },
+  card: {
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  // ─── Simple (Free) ─────────────────────────────────────────────────────────
+  simpleCard: {
+    borderColor: 'rgba(255,255,255,0.10)',
+    gap: 12,
+  },
+  simpleTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: -0.3,
+  },
+  simpleDesc: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.45)',
+    fontWeight: '300',
+    lineHeight: 19,
+  },
+  simpleFeatList: {
+    gap: 5,
+  },
+  simpleFeat: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    fontWeight: '300',
     letterSpacing: 0.3,
   },
-  cardsWrapper: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    gap: 16,
+  simpleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
   },
-  pressableArea: {
-    width: '100%',
+  simpleLink: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.55)',
+    fontWeight: '600',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
-  premiumWrapper: {
-    marginBottom: 8,
-  },
-  premiumCardContainer: {
-    width: '100%',
-    borderRadius: 24,
-    padding: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
+  // ─── Privilège (Premium) ───────────────────────────────────────────────────
+  privCard: {
+    borderColor: 'rgba(194,24,91,0.35)',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 12,
+    shadowOpacity: 0.2,
+    elevation: 8,
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
-  premiumHeader: {
+  privHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  premiumTitle: {
-    fontFamily: Fonts.display,
+  privTitle: {
+    fontFamily: Fonts.displayItalic,
     fontSize: 28,
-    color: '#fff',
-    fontStyle: 'italic',
+    color: '#ffffff',
   },
-  premiumDesc: {
+  privDesc: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.5)',
     fontWeight: '300',
     lineHeight: 20,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   features: {
-    gap: 12,
-    marginBottom: 32,
+    gap: 11,
+    marginBottom: 28,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
   },
   featureText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.65)',
     fontWeight: '300',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   ctaBtn: {
     backgroundColor: 'rgba(194,24,91,0.85)',
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 999,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(233,30,140,0.4)',
   },
   ctaText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 2,
-  },
-  freeWrapper: {
-    width: '100%',
-  },
-  freeCardContainer: {
-    width: '100%',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    gap: 12,
-  },
-  freeTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    color: 'rgba(255,255,255,0.9)',
-    letterSpacing: -0.3,
-  },
-  freeDescBody: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.45)',
-    fontWeight: '300',
-    lineHeight: 19,
-  },
-  freeFeatList: {
-    gap: 6,
-    paddingBottom: 4,
-  },
-  freeFeat: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.35)',
-    fontWeight: '300',
-    letterSpacing: 0.3,
-  },
-  freeFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  freeLink: {
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.55)',
-    fontWeight: '600',
-    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
 })
