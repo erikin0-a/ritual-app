@@ -8,14 +8,12 @@ import Animated, {
   FadeInUp,
   Easing,
 } from 'react-native-reanimated'
-import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme'
+import { Colors, Spacing, Typography } from '@/constants/theme'
 
 interface RitualTransitionOverlayProps {
   kicker: string
   title: string
   body: string
-  allowed: string[]
-  forbidden: string[]
   footnote?: string
 }
 
@@ -23,8 +21,6 @@ export function RitualTransitionOverlay({
   kicker,
   title,
   body,
-  allowed,
-  forbidden,
   footnote,
 }: RitualTransitionOverlayProps) {
   const pulseScale = useSharedValue(1)
@@ -69,32 +65,6 @@ export function RitualTransitionOverlay({
         <Text style={styles.kicker}>{kicker}</Text>
         <Text style={styles.title}>{title}</Text>
         {body ? <Text style={styles.body}>{body}</Text> : null}
-
-        <View style={styles.divider} />
-
-        <View style={styles.rulesSection}>
-          <View style={styles.group}>
-            <Text style={styles.groupTitle}>РАЗРЕШЕНО</Text>
-            <View style={styles.pillRow}>
-              {allowed.map((item) => (
-                <View key={item} style={[styles.pill, styles.allowedPill]}>
-                  <Text style={[styles.pillText, styles.allowedText]}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.group}>
-            <Text style={styles.groupTitle}>ЗАПРЕЩЕНО</Text>
-            <View style={styles.pillRow}>
-              {forbidden.map((item) => (
-                <View key={item} style={[styles.pill, styles.forbiddenPill]}>
-                  <Text style={[styles.pillText, styles.forbiddenText]}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
 
         {footnote ? <Text style={styles.footnote}>{footnote}</Text> : null}
       </Animated.View>
@@ -148,52 +118,6 @@ const styles = StyleSheet.create({
   body: {
     ...Typography.body,
     color: Colors.textSecondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginVertical: 2,
-  },
-  rulesSection: {
-    gap: Spacing.md,
-  },
-  group: {
-    gap: 8,
-  },
-  groupTitle: {
-    fontSize: 9,
-    letterSpacing: 2.5,
-    color: 'rgba(255,255,255,0.22)',
-    fontWeight: '600',
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  allowedPill: {
-    backgroundColor: 'rgba(141,216,176,0.10)',
-    borderColor: 'rgba(141,216,176,0.16)',
-  },
-  forbiddenPill: {
-    backgroundColor: 'rgba(194,24,91,0.09)',
-    borderColor: 'rgba(194,24,91,0.16)',
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  allowedText: {
-    color: Colors.success,
-  },
-  forbiddenText: {
-    color: Colors.accent,
   },
   footnote: {
     ...Typography.caption,

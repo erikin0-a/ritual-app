@@ -673,8 +673,6 @@ export default function RitualSessionScreen() {
               kicker={roundScene.title}
               title={roundScene.transitionTitle}
               body={roundScene.transitionBody}
-              allowed={round.allowed}
-              forbidden={round.forbidden}
               footnote={roundScene.ruleFootnote}
             />
           </View>
@@ -851,7 +849,7 @@ const styles = StyleSheet.create({
   roundEdgeFlash: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 2,
-    borderColor: Colors.accent,
+    borderColor: 'rgba(194,24,91,0.5)',
     borderRadius: 0,
     zIndex: 10,
     pointerEvents: 'none' as const,
