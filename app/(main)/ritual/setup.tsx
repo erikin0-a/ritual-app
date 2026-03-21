@@ -90,7 +90,7 @@ function PartnerPane({
 // ─── Ready Screen (names already in store) ────────────────────────────────────
 function ReadyPane({ p1Name, p2Name }: { p1Name: string; p2Name: string }) {
   return (
-    <Animated.View entering={FadeIn.duration(700).delay(100)} style={styles.readyContainer}>
+    <Animated.View entering={FadeIn.duration(500)} style={styles.readyContainer}>
       <View style={styles.readyPair}>
         <Text style={styles.readyName}>{p1Name}</Text>
         <Text style={styles.readyAmpersand}>&</Text>

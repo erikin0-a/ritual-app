@@ -97,9 +97,9 @@ function GridTile({ tile, router }: { tile: TileData; router: ReturnType<typeof 
           <>
             <View style={[StyleSheet.absoluteFill, styles.lockedOverlay]} pointerEvents="none" />
             <View style={styles.lockIconWrap} pointerEvents="none">
-              <Lock size={14} color="rgba(255,255,255,0.28)" strokeWidth={1.5} />
+              <Lock size={16} color="rgba(255,255,255,0.30)" strokeWidth={1.5} />
             </View>
-            <Text style={styles.soonLabel} pointerEvents="none">СКОРО</Text>
+            <Text style={styles.soonLabel}>СКОРО</Text>
           </>
         )}
 
@@ -126,7 +126,7 @@ function WideTile() {
       <View style={[StyleSheet.absoluteFill, styles.tileBorder]} />
       <View style={[StyleSheet.absoluteFill, styles.lockedOverlay]} />
       <View style={styles.lockIconWrap}>
-        <Lock size={14} color="rgba(255,255,255,0.28)" strokeWidth={1.5} />
+        <Lock size={16} color="rgba(255,255,255,0.30)" strokeWidth={1.5} />
       </View>
       <Text style={styles.wideTileName}>Особое погружение</Text>
       <Text style={styles.soonLabelRight}>СКОРО</Text>
