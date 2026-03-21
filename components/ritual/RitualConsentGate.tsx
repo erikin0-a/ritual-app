@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dimensions, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Dimensions, Platform, StyleSheet, Text, View } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import Animated, {
   useSharedValue,
@@ -10,7 +10,9 @@ import Animated, {
   Easing,
   FadeIn,
   interpolate,
+  runOnJS,
 } from 'react-native-reanimated'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Colors, Fonts } from '@/constants/theme'
 import type { RitualParticipants } from '@/types'
@@ -31,13 +33,9 @@ export interface RitualConsentGateProps {
 function HoldPanel({
   name,
   isActive,
-  onPressIn,
-  onPressOut,
 }: {
   name: string
   isActive: boolean
-  onPressIn: () => void
-  onPressOut: () => void
 }) {
   const glowOpacity = useSharedValue(0)
   const panelScale = useSharedValue(1)
@@ -75,52 +73,37 @@ function HoldPanel({
   const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: dotScale.value }] }))
 
   return (
-    <Pressable
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      style={styles.panelPressable}
-    >
-      <Animated.View style={[styles.panel, { height: PANEL_H }, panelStyle]}>
-        {/* Glass fill */}
-        <LinearGradient
-          colors={
-            isActive
-              ? ['rgba(194,24,91,0.20)', 'rgba(139,26,74,0.08)']
-              : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* Border overlay */}
-        <View
-          pointerEvents="none"
-          style={[styles.panelBorder, isActive && styles.panelBorderActive]}
-        />
-        {/* Glow bloom */}
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.panelGlow, glowStyle]}
-        />
-        {/* Ghost watermark — large faint name behind content */}
-        <Text style={styles.panelWatermark} numberOfLines={1} adjustsFontSizeToFit>
+    <Animated.View style={[styles.panel, { height: PANEL_H }, panelStyle]}>
+      <LinearGradient
+        colors={
+          isActive
+            ? ['rgba(194,24,91,0.20)', 'rgba(139,26,74,0.08)']
+            : ['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)']
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View
+        pointerEvents="none"
+        style={[styles.panelBorder, isActive && styles.panelBorderActive]}
+      />
+      <Animated.View pointerEvents="none" style={[styles.panelGlow, glowStyle]} />
+      <Text style={styles.panelWatermark} numberOfLines={1} adjustsFontSizeToFit>
+        {name}
+      </Text>
+      <View style={styles.panelContent}>
+        <Text style={[styles.panelName, isActive && styles.panelNameActive]} numberOfLines={1}>
           {name}
         </Text>
-
-        {/* Content */}
-        <View style={styles.panelContent}>
-          <Text style={[styles.panelName, isActive && styles.panelNameActive]} numberOfLines={1}>
-            {name}
-          </Text>
-          <Animated.View style={[styles.fingerDot, isActive && styles.fingerDotActive, dotStyle]}>
-            <View style={[styles.fingerDotInner, isActive && styles.fingerDotInnerActive]} />
-          </Animated.View>
-          <Text style={[styles.holdHint, isActive && styles.holdHintActive]}>
-            {isActive ? 'удерживайте' : 'нажмите\nи держите'}
-          </Text>
-        </View>
-      </Animated.View>
-    </Pressable>
+        <Animated.View style={[styles.fingerDot, isActive && styles.fingerDotActive, dotStyle]}>
+          <View style={[styles.fingerDotInner, isActive && styles.fingerDotInnerActive]} />
+        </Animated.View>
+        <Text style={[styles.holdHint, isActive && styles.holdHintActive]}>
+          {isActive ? 'удерживайте' : 'нажмите\nи держите'}
+        </Text>
+      </View>
+    </Animated.View>
   )
 }
 
@@ -191,18 +174,32 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
     progressShared.value = withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) })
   }, [progressShared])
 
+  // GestureHandler позволяет двум касаниям работать одновременно.
+  // Pressable использует iOS responder system — один responder = одно касание.
+  const p1Gesture = Gesture.Pan()
+    .minDistance(0)
+    .onBegin(() => runOnJS(startHold)('p1'))
+    .onFinalize(() => runOnJS(cancelHold)('p1'))
+
+  const p2Gesture = Gesture.Pan()
+    .minDistance(0)
+    .onBegin(() => runOnJS(startHold)('p2'))
+    .onFinalize(() => runOnJS(cancelHold)('p2'))
+
+  p1Gesture.simultaneousWithExternalGesture(p2Gesture)
+  p2Gesture.simultaneousWithExternalGesture(p1Gesture)
+
   const bothActive = p1Active && p2Active
 
   return (
     <Animated.View entering={FadeIn.duration(900)} style={styles.container}>
       {/* P2 panel — top, rotated 180° so they face the device from the other side */}
       <View style={styles.rotatedWrap}>
-        <HoldPanel
-          name={participants.p2.name}
-          isActive={p2Active}
-          onPressIn={() => startHold('p2')}
-          onPressOut={() => cancelHold('p2')}
-        />
+        <GestureDetector gesture={p2Gesture}>
+          <View style={styles.panelPressable}>
+            <HoldPanel name={participants.p2.name} isActive={p2Active} />
+          </View>
+        </GestureDetector>
       </View>
 
       {/* Center progress indicator + instruction */}
@@ -216,12 +213,11 @@ export function RitualConsentGate({ participants, onComplete }: RitualConsentGat
       </View>
 
       {/* P1 panel — bottom */}
-      <HoldPanel
-        name={participants.p1.name}
-        isActive={p1Active}
-        onPressIn={() => startHold('p1')}
-        onPressOut={() => cancelHold('p1')}
-      />
+      <GestureDetector gesture={p1Gesture}>
+        <View style={styles.panelPressable}>
+          <HoldPanel name={participants.p1.name} isActive={p1Active} />
+        </View>
+      </GestureDetector>
     </Animated.View>
   )
 }

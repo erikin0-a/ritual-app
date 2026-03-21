@@ -27,16 +27,20 @@ function CyclingPhrase() {
   const opacity = useSharedValue(1)
   const translateY = useSharedValue(0)
 
+  const nextPhase = useCallback(() => {
+    setIndex(prev => (prev + 1) % PHRASES.length)
+  }, [])
+
   const advance = useCallback(() => {
     opacity.value = withTiming(0, { duration: 600, easing: Easing.in(Easing.ease) }, (done) => {
       if (!done) return
       translateY.value = 20
-      runOnJS(setIndex)((prev) => (prev + 1) % PHRASES.length)
+      runOnJS(nextPhase)()
       opacity.value = withTiming(1, { duration: 750, easing: Easing.out(Easing.ease) })
       translateY.value = withTiming(0, { duration: 750, easing: Easing.out(Easing.cubic) })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [nextPhase])
 
   useEffect(() => {
     const timer = globalThis.setInterval(advance, 4000)
@@ -48,7 +52,8 @@ function CyclingPhrase() {
     transform: [{ translateY: translateY.value }],
   }))
 
-  const [prefix, italic] = PHRASES[index]
+  const phrase = PHRASES[index] ?? PHRASES[0]
+  const [prefix, italic] = phrase
 
   return (
     <Animated.Text style={[styles.phraseText, animStyle]}>
