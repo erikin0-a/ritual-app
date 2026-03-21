@@ -48,20 +48,35 @@ const DIMMING_PHRASES = [
 function DimmingOrb({ pct }: { pct: number }) {
   const [phraseIdx, setPhraseIdx] = useState(0)
 
-  const titleOpacity = useSharedValue(0.35)
+  const titleOpacity = useSharedValue(0.6)
   const phraseOpacity = useSharedValue(1)
-  const barWidth = useSharedValue(pct)
+  const visualPct = useSharedValue(0)
 
+  // Smart progress: race to 60% in 2s, then slow to 90% over 4s, then wait for real pct to hit 100
   useEffect(() => {
-    barWidth.value = withTiming(pct, { duration: 600, easing: Easing.out(Easing.quad) })
+    // Phase 1: fast to 60%
+    visualPct.value = withTiming(60, { duration: 2000, easing: Easing.out(Easing.quad) })
+    const phase2 = globalThis.setTimeout(() => {
+      // Phase 2: slow to 90%
+      visualPct.value = withTiming(90, { duration: 4000, easing: Easing.out(Easing.cubic) })
+    }, 2000)
+    return () => globalThis.clearTimeout(phase2)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Phase 3: when real pct reaches 100, animate visual to 100
+  useEffect(() => {
+    if (pct >= 100) {
+      visualPct.value = withTiming(100, { duration: 600, easing: Easing.out(Easing.quad) })
+    }
   }, [pct]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Breath pulse on title
+    // Breath pulse on title — spec: 0.6↔1.0, 3s total cycle
     titleOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.65, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.22, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1.0, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.6, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
@@ -81,7 +96,7 @@ function DimmingOrb({ pct }: { pct: number }) {
 
   const titleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }))
   const phraseStyle = useAnimatedStyle(() => ({ opacity: phraseOpacity.value }))
-  const barStyle = useAnimatedStyle(() => ({ width: `${barWidth.value}%` as unknown as number }))
+  const barStyle = useAnimatedStyle(() => ({ width: `${visualPct.value}%` as unknown as number }))
 
   return (
     <View style={dimmingStyles.screen}>
@@ -859,16 +874,14 @@ const dimmingStyles = StyleSheet.create({
   },
   titleText: {
     fontFamily: Fonts.displayItalic,
-    fontSize: 52,
+    fontSize: 48,
     color: '#ffffff',
     letterSpacing: 0.2,
   },
   phraseText: {
-    fontSize: 11,
-    fontWeight: '300' as const,
+    fontFamily: Fonts.display,
+    fontSize: 16,
     color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 2.5,
-    textTransform: 'uppercase' as const,
     textAlign: 'center' as const,
   },
   progressWrap: {
