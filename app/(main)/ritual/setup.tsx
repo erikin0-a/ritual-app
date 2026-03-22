@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -15,7 +15,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { ArrowRight } from 'lucide-react-native'
 import Animated, {
   FadeIn,
-  FadeInDown,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -87,14 +86,79 @@ function PartnerPane({
   )
 }
 
+// ─── Inline-editable name field ─────────────────────────────────────────────
+function EditableName({
+  value,
+  onSave,
+}: {
+  value: string
+  onSave: (name: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<TextInput>(null)
+
+  const handlePress = () => {
+    setDraft(value)
+    setEditing(true)
+    // Focus after state update renders the input
+    globalThis.setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  const handleBlur = () => {
+    setEditing(false)
+    const trimmed = draft.trim()
+    if (trimmed.length >= 2 && trimmed !== value) {
+      onSave(trimmed)
+    } else {
+      setDraft(value)
+    }
+  }
+
+  if (editing) {
+    return (
+      <View style={styles.editableNameWrap}>
+        <TextInput
+          ref={inputRef}
+          style={styles.readyNameInput}
+          value={draft}
+          onChangeText={setDraft}
+          onBlur={handleBlur}
+          onSubmitEditing={handleBlur}
+          selectionColor={Colors.accent}
+          autoCorrect={false}
+          returnKeyType="done"
+        />
+      </View>
+    )
+  }
+
+  return (
+    <Pressable onPress={handlePress} style={styles.editableNameWrap}>
+      <Text style={styles.readyName}>{value}</Text>
+      <Text style={styles.editHint}>нажмите чтобы изменить</Text>
+    </Pressable>
+  )
+}
+
 // ─── Ready Screen (names already in store) ────────────────────────────────────
-function ReadyPane({ p1Name, p2Name }: { p1Name: string; p2Name: string }) {
+function ReadyPane({
+  p1Name,
+  p2Name,
+  onP1Change,
+  onP2Change,
+}: {
+  p1Name: string
+  p2Name: string
+  onP1Change: (name: string) => void
+  onP2Change: (name: string) => void
+}) {
   return (
     <Animated.View entering={FadeIn.duration(500)} style={styles.readyContainer}>
       <View style={styles.readyPair}>
-        <Text style={styles.readyName}>{p1Name}</Text>
+        <EditableName value={p1Name} onSave={onP1Change} />
         <Text style={styles.readyAmpersand}>&</Text>
-        <Text style={styles.readyName}>{p2Name}</Text>
+        <EditableName value={p2Name} onSave={onP2Change} />
       </View>
       <Text style={styles.readyHint}>Ваши имена сохранены из предыдущего сеанса</Text>
     </Animated.View>
@@ -165,10 +229,25 @@ export default function RitualSetupScreen() {
           <View style={styles.content}>
             {hasStoredNames ? (
               <View style={styles.panesWrapper}>
-                <ReadyPane p1Name={storedParticipants.p1.name} p2Name={storedParticipants.p2.name} />
+                <ReadyPane
+                  p1Name={storedParticipants.p1.name}
+                  p2Name={storedParticipants.p2.name}
+                  onP1Change={(name) => {
+                    setRitualParticipants(createRitualParticipants({
+                      p1: { id: 'p1', name, gender: storedParticipants.p1.gender },
+                      p2: storedParticipants.p2,
+                    }))
+                  }}
+                  onP2Change={(name) => {
+                    setRitualParticipants(createRitualParticipants({
+                      p1: storedParticipants.p1,
+                      p2: { id: 'p2', name, gender: storedParticipants.p2.gender },
+                    }))
+                  }}
+                />
               </View>
             ) : (
-              <Animated.View entering={FadeInDown.duration(800).delay(100)} style={styles.panesWrapper}>
+              <Animated.View entering={FadeIn.duration(500)} style={styles.panesWrapper}>
                 <PartnerPane
                   number="01"
                   name={partner1Name}
@@ -187,7 +266,7 @@ export default function RitualSetupScreen() {
               </Animated.View>
             )}
 
-            <Animated.View entering={FadeIn.duration(600).delay(300)} style={styles.footer}>
+            <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.footer}>
               <Pressable
                 style={styles.fabPressableArea}
                 onPressIn={() => { btnPressed.value = withTiming(1, { duration: 150 }) }}
@@ -208,15 +287,11 @@ export default function RitualSetupScreen() {
     </View>
   )
 
-  // Dismiss keyboard on tap when fallback input shown
-  if (!hasStoredNames) {
-    return (
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        {content}
-      </TouchableWithoutFeedback>
-    )
-  }
-  return content
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      {content}
+    </TouchableWithoutFeedback>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -363,6 +438,24 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.2)',
     textTransform: 'uppercase',
     textAlign: 'center',
+  },
+  editableNameWrap: {
+    alignItems: 'center',
+  },
+  readyNameInput: {
+    fontFamily: Fonts.display,
+    fontSize: 48,
+    color: '#fff',
+    fontWeight: '300',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+    paddingVertical: 0,
+    minWidth: 120,
+  },
+  editHint: {
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.25)',
+    marginTop: 2,
   },
 
   // ─── Footer button ────────────────────────────────────────────────────────

@@ -74,7 +74,7 @@ function CyclingPhrase() {
 
   return (
     <Animated.Text style={[styles.cyclingPhrase, animStyle]}>
-      {ONBOARDING_PHRASES[index]}
+      {ONBOARDING_PHRASES[index] ?? ONBOARDING_PHRASES[0]}
     </Animated.Text>
   )
 }

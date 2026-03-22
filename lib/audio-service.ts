@@ -138,6 +138,16 @@ async function cacheRemoteUri(uri: string): Promise<string> {
   }
 }
 
+function prepareTtsText(raw: string): string {
+  // Strip bracket-style hints like [calm], [slow], [soft], [slower]
+  let cleaned = raw.replace(/\[.*?\]/g, '').trim()
+  // If text contains SSML break tags, wrap in <speak> so ElevenLabs interprets them
+  if (/<break\b[^>]*\/>/.test(cleaned)) {
+    cleaned = `<speak>${cleaned}</speak>`
+  }
+  return cleaned
+}
+
 async function synthesizeTextToCache(text: string, cacheKey?: string): Promise<string> {
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
     throw new Error('ElevenLabs env vars are not configured')
@@ -150,6 +160,8 @@ async function synthesizeTextToCache(text: string, cacheKey?: string): Promise<s
     if (info.exists) return localPath
   }
 
+  const ttsText = prepareTtsText(text)
+
   const response = await fetch(`${ELEVENLABS_BASE_URL}/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`, {
     method: 'POST',
     headers: {
@@ -158,7 +170,7 @@ async function synthesizeTextToCache(text: string, cacheKey?: string): Promise<s
       'xi-api-key': ELEVENLABS_API_KEY,
     },
     body: JSON.stringify({
-      text,
+      text: ttsText,
       model_id: ELEVENLABS_MODEL_ID,
       output_format: 'mp3_44100_128',
       voice_settings: {

@@ -21,14 +21,12 @@ import {
   GUIDED_ROUND_SCENES,
   GUIDED_TRANSITION_CUES,
 } from '@/constants/guided-session'
-import { ScreenContainer } from '@/components/common/ScreenContainer'
 import { LiquidBackground } from '@/components/ui/LiquidBackground'
-import { CircularTimer } from '@/components/ritual/CircularTimer'
+import { MeditationTimer } from '@/components/ritual/MeditationTimer'
 import { RitualCompletionSurface } from '@/components/ritual/RitualCompletionSurface'
 import { RitualIntro } from '@/components/ritual/RitualIntro'
 import { RitualParticipantChips } from '@/components/ritual/RitualParticipantChips'
 import { RitualSetupOverlay } from '@/components/ritual/RitualSetupOverlay'
-import { RitualTransitionOverlay } from '@/components/ritual/RitualTransitionOverlay'
 import { VoiceSubtitle } from '@/components/ritual/VoiceSubtitle'
 import { Analytics } from '@/lib/analytics'
 import { useAuthStore } from '@/stores/auth.store'
@@ -248,6 +246,7 @@ export default function RitualSessionScreen() {
   const preludeStartTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
   const preludeMusicRef = useRef<Audio.Sound | null>(null)
   const preludeVoiceRef = useRef<Audio.Sound | null>(null)
+  const freeMusicRef = useRef<Audio.Sound | null>(null)
   const signalRef = useRef<Audio.Sound | null>(null)
   const isPausedRef = useRef(isPaused)
 
@@ -304,10 +303,16 @@ export default function RitualSessionScreen() {
     }
   }, [durationPreference, resolvedMode, startRitual])
 
+  const cleanupFreeMusic = useCallback(() => {
+    freeMusicRef.current?.unloadAsync().catch(() => null)
+    freeMusicRef.current = null
+  }, [])
+
   const handleRestart = useCallback(() => {
     cleanupPreludeTimers()
     cleanupTransitionTimer()
     cleanupPreludeAudio()
+    cleanupFreeMusic()
     resetRitual()
     stopAudio().catch(() => null)
     clearSubtitle()
@@ -318,7 +323,7 @@ export default function RitualSessionScreen() {
     setVoiceStartTime(null)
     setConsentCompleted(false)
     setPhase('loading')
-  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, stopAudio])
+  }, [cleanupFreeMusic, cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, clearSubtitle, resetRitual, stopAudio])
 
   useEffect(() => {
     let mounted = true
@@ -344,10 +349,11 @@ export default function RitualSessionScreen() {
       cleanupPreludeTimers()
       cleanupTransitionTimer()
       cleanupPreludeAudio()
+      cleanupFreeMusic()
       stopAudio().catch(() => null)
       resetRitual()
     }
-  }, [cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, resetRitual, stopAudio])
+  }, [cleanupFreeMusic, cleanupPreludeAudio, cleanupPreludeTimers, cleanupTransitionTimer, resetRitual, stopAudio])
 
   useEffect(() => {
     if (resolvedMode !== 'guided') return
@@ -459,9 +465,10 @@ export default function RitualSessionScreen() {
       if (resolvedMode === 'guided') {
         Analytics.premiumSessionCompleted()
       }
+      cleanupFreeMusic()
       setPhase('completion')
     }
-  }, [resolvedMode, status])
+  }, [cleanupFreeMusic, resolvedMode, status])
 
   useEffect(() => {
     if (status !== 'in_round' || !currentRound || !didStartSessionRef.current) return
@@ -516,15 +523,33 @@ export default function RitualSessionScreen() {
       if (nextRound <= 5) {
         preloadRound(nextRound).catch(() => null)
       }
+    } else if (!freeMusicRef.current) {
+      // Free mode: start looping background music on first round
+      Audio.Sound.createAsync(
+        require('@/assets/audio/ritual_music.mp3'),
+        { shouldPlay: true, isLooping: true, volume: 0.35 },
+      )
+        .then(({ sound }) => {
+          freeMusicRef.current = sound
+        })
+        .catch(() => null)
     }
   }, [currentRound, phase, preloadRound, resolvedMode, startAudioRound, status])
 
   useEffect(() => {
-    if (resolvedMode !== 'guided') return
-    if (isPaused) {
-      pauseAudio().catch(() => null)
-    } else if (isAudioPlaying && phase === 'roundPlayback') {
-      resumeAudio().catch(() => null)
+    if (resolvedMode === 'guided') {
+      if (isPaused) {
+        pauseAudio().catch(() => null)
+      } else if (isAudioPlaying && phase === 'roundPlayback') {
+        resumeAudio().catch(() => null)
+      }
+    } else {
+      // Free mode: pause/resume background music
+      if (isPaused) {
+        freeMusicRef.current?.pauseAsync().catch(() => null)
+      } else if (phase === 'roundPlayback') {
+        freeMusicRef.current?.playAsync().catch(() => null)
+      }
     }
   }, [isAudioPlaying, isPaused, pauseAudio, phase, resolvedMode, resumeAudio])
 
@@ -602,135 +627,49 @@ export default function RitualSessionScreen() {
   const activeBranch = currentRound ? branchByRound[currentRound] : undefined
   const activeLeaderName =
     activeBranch === 'a' ? ritualParticipants.p1.name : activeBranch === 'b' ? ritualParticipants.p2.name : null
-  // Background intensity grows with each round: 0.18 (R1) → 1.0 (R5)
-  const roundIntensity = currentRound ? 0.18 + ((currentRound - 1) / 4) * 0.82 : 0.4
+  // Background intensity: loading=0.25, round-based=0.18→1.0, default=0.4
+  const roundIntensity = phase === 'loading' ? 0.25 : (currentRound ? 0.18 + ((currentRound - 1) / 4) * 0.82 : 0.4)
 
-  const headerContent = (
-    <View style={styles.header}>
-      <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
-      {currentRound ? (
-        <Text style={styles.headerLabel}>РАУНД {currentRound}</Text>
-      ) : null}
-      {roundScene ? (
-        <Text style={styles.headerRound}>{roundScene.titleShort}</Text>
-      ) : null}
-    </View>
-  )
-
-  if (phase === 'prelude') {
-    return (
-      <View style={styles.darkScreen}>
-        <RitualIntro participants={ritualParticipants} onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
-      </View>
-    )
-  }
-
-  if (phase === 'loading' && resolvedMode === 'guided') {
-    return (
-      <View style={styles.darkScreen}>
-        <DimmingOrb pct={preloadBlend} />
-      </View>
-    )
-  }
-
-  if (phase === 'completion') {
-    return (
-      <View style={styles.darkScreen}>
-        <RitualCompletionSurface
-          title={FINAL_MESSAGE.title}
-          body={FINAL_MESSAGE.body}
-          onRestart={handleRestart}
-          onClose={() => router.replace('/(main)')}
-        />
-      </View>
-    )
-  }
-
-  if (!round || !roundScene || status === 'idle') {
-    return (
-      <ScreenContainer background="ritual" safe={false}>
-        <View style={styles.fullscreenCenter}>
-          <Text style={styles.loadingText}>Подготавливаем ритуал...</Text>
-        </View>
-      </ScreenContainer>
-    )
-  }
-
-  if (phase === 'transition') {
-    return (
-      <ScreenContainer background="ritual" safe={false} style={styles.screen}>
-        {/* Screen pulse flash on round change */}
-        <Animated.View
-          entering={FadeIn.duration(120)}
-          exiting={FadeOut.duration(800)}
-          style={styles.transitionFlash}
-          pointerEvents="none"
-        />
-        <View style={styles.screenPad}>
-          {headerContent}
-          <View style={styles.fullscreenCenter}>
-            <RitualTransitionOverlay
-              kicker={roundScene.title}
-              title={roundScene.transitionTitle}
-              body={roundScene.transitionBody}
-              footnote={roundScene.ruleFootnote}
-            />
-          </View>
-        </View>
-        <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />
-      </ScreenContainer>
-    )
-  }
-
-  if (phase === 'setup' && (roundScene.setupKind === 'roulette' || roundScene.setupKind === 'starter-choice')) {
-    return (
-      <ScreenContainer background="ritual" safe={false} style={styles.screen}>
-        <View style={styles.screenPad}>
-          {headerContent}
-          <View style={styles.fullscreenCenter}>
-            <RitualSetupOverlay
-              kind={roundScene.setupKind}
-              title={roundScene.setupTitle ?? roundScene.transitionTitle}
-              body={roundScene.setupBody ?? roundScene.transitionBody}
-              participants={ritualParticipants}
-              onConfirm={handleSetupConfirm}
-            />
-          </View>
-        </View>
-        <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />
-      </ScreenContainer>
-    )
-  }
-
-  // ─── Round Playback — clean, timer-focused, no scroll ───────────────────────
+  // ─── Single render tree — overlay architecture ─────────────────────────────
   return (
     <View style={styles.screen}>
+      {/* Persistent background — always visible */}
       <LiquidBackground intensity={roundIntensity} />
 
-      {/* Safe content area */}
-      <View style={[styles.safeContent, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
+      {/* Header — visible in all phases except loading */}
+      {phase !== 'loading' && (
+        <View style={[styles.headerAbsolute, { paddingTop: insets.top + 12 }]}>
+          <View style={styles.header}>
+            <RoundProgressDots currentRound={currentRound} completedRounds={completedRounds} />
+            {currentRound ? (
+              <Text style={styles.headerLabel}>РАУНД {currentRound}</Text>
+            ) : null}
+            {roundScene ? (
+              <Text style={styles.headerRound}>{roundScene.titleShort}</Text>
+            ) : null}
+          </View>
+        </View>
+      )}
 
-        {/* ── Header — matches БЛОК 6.2 spec across all phases ── */}
-        {headerContent}
-
-        {/* ── Timer hint ── */}
-        {roundScene.timerHint ? (
-          <Text style={styles.roundHint}>{roundScene.timerHint}</Text>
-        ) : null}
-
-        {/* ── Timer (main focus) ── */}
-        <View style={styles.timerArea}>
-          <CircularTimer
+      {/* Timer — visible during roundPlayback */}
+      {phase === 'roundPlayback' && round && (
+        <View style={styles.timerAbsolute}>
+          <MeditationTimer
             totalSeconds={round.duration}
             remainingSeconds={roundTimeRemaining}
             isPaused={isPaused}
             roundIndex={currentRound ?? 1}
             onPauseToggle={pauseToggle}
           />
+          {roundScene?.timerHint ? (
+            <Text style={styles.roundHint}>{roundScene.timerHint}</Text>
+          ) : null}
         </View>
+      )}
 
-        {/* ── Participant chips + leader badge ── */}
-        <View style={styles.chipsArea}>
+      {/* Participant chips — visible during roundPlayback */}
+      {phase === 'roundPlayback' && (
+        <View style={[styles.chipsAbsolute, { paddingBottom: insets.bottom + 16 }]}>
           <RitualParticipantChips participants={ritualParticipants} highlighted={highlightedParticipants} />
           {activeLeaderName ? (
             <Text style={styles.activeLeader}>
@@ -739,10 +678,64 @@ export default function RitualSessionScreen() {
             </Text>
           ) : null}
         </View>
+      )}
 
-      </View>
-
+      {/* Voice subtitle — visible during guided mode */}
       {resolvedMode === 'guided' && <VoiceSubtitle cue={currentCue} participants={ritualParticipants} />}
+
+      {/* ── Overlay: Loading / DimmingOrb ── */}
+      {phase === 'loading' && resolvedMode === 'guided' && (
+        <Animated.View entering={FadeIn.duration(600)} exiting={FadeOut.duration(600)} style={styles.overlayFill}>
+          <DimmingOrb pct={preloadBlend} />
+        </Animated.View>
+      )}
+
+      {/* ── Overlay: Prelude / RitualIntro ── */}
+      {phase === 'prelude' && (
+        <Animated.View entering={FadeIn.duration(800)} exiting={FadeOut.duration(800)} style={styles.overlayFill}>
+          <RitualIntro participants={ritualParticipants} onConsentComplete={handleConsentComplete} voiceStartTime={voiceStartTime} />
+        </Animated.View>
+      )}
+
+      {/* ── Overlay: Transition ── */}
+      {phase === 'transition' && roundScene && (
+        <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(400)} style={styles.transitionOverlay}>
+          <Text style={styles.transitionKicker}>РАУНД {currentRound}</Text>
+          <Text style={styles.transitionTitle}>{roundScene.transitionTitle}</Text>
+          {roundScene.transitionBody ? (
+            <Text style={styles.transitionBody}>{roundScene.transitionBody}</Text>
+          ) : null}
+        </Animated.View>
+      )}
+
+      {/* ── Overlay: Setup (roulette / starter-choice) ── */}
+      {phase === 'setup' && roundScene && (roundScene.setupKind === 'roulette' || roundScene.setupKind === 'starter-choice') && (
+        <Animated.View entering={FadeIn.duration(500)} exiting={FadeOut.duration(400)} style={styles.overlayFill}>
+          <View style={styles.setupOverlayContent}>
+            <RitualSetupOverlay
+              kind={roundScene.setupKind}
+              title={roundScene.setupTitle ?? roundScene.transitionTitle}
+              body={roundScene.setupBody ?? roundScene.transitionBody}
+              participants={ritualParticipants}
+              onConfirm={handleSetupConfirm}
+            />
+          </View>
+        </Animated.View>
+      )}
+
+      {/* ── Overlay: Completion ── */}
+      {phase === 'completion' && (
+        <Animated.View entering={FadeIn.duration(800)} exiting={FadeOut.duration(600)} style={styles.overlayFill}>
+          <RitualCompletionSurface
+            title={FINAL_MESSAGE.title}
+            body={FINAL_MESSAGE.body}
+            onRestart={handleRestart}
+            onClose={() => router.replace('/(main)')}
+          />
+        </Animated.View>
+      )}
+
+      {/* Edge flash on round change */}
       {edgeFlashKey > 0 && <RoundEdgeFlash key={edgeFlashKey} />}
     </View>
   )
@@ -753,15 +746,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bg,
   },
-  screenPad: {
-    flex: 1,
-    paddingTop: Spacing.xxxl,
-    paddingHorizontal: Spacing.xl,
-  },
-  fullscreenCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // ─── Absolute-positioned layers ─────────────────────────────────────────────
+  headerAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     paddingHorizontal: Spacing.xl,
   },
   header: {
@@ -805,15 +796,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.80)',
     letterSpacing: 0.1,
   },
-  loadingText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
-  // ─── Round Playback ────────────────────────────────────────────────────────
-  safeContent: {
-    flex: 1,
-    paddingHorizontal: Spacing.xl,
-    justifyContent: 'space-between',
+  timerAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
   },
   roundHint: {
     fontSize: 12,
@@ -821,15 +812,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     fontWeight: '300',
-    marginTop: 2,
+    marginTop: 12,
     letterSpacing: 0.2,
   },
-  timerArea: {
-    alignItems: 'center',
-  },
-  chipsArea: {
+  chipsAbsolute: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    zIndex: 10,
   },
   activeLeader: {
     ...Typography.caption,
@@ -840,23 +834,56 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '600',
   },
-  transitionFlash: {
+  // ─── Overlays ───────────────────────────────────────────────────────────────
+  overlayFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.accent,
-    opacity: 0.07,
-    zIndex: 1,
+    zIndex: 30,
+  },
+  setupOverlayContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  // ─── Transition overlay (inline) ────────────────────────────────────────────
+  transitionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    paddingHorizontal: Spacing.xl,
+  },
+  transitionKicker: {
+    fontSize: 10,
+    letterSpacing: 4,
+    color: 'rgba(255,255,255,0.35)',
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  transitionTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 42,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  transitionBody: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.45)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 16,
+    maxWidth: 280,
   },
   roundEdgeFlash: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 2,
     borderColor: 'rgba(194,24,91,0.5)',
     borderRadius: 0,
-    zIndex: 10,
+    zIndex: 70,
     pointerEvents: 'none' as const,
-  },
-  darkScreen: {
-    flex: 1,
-    backgroundColor: Colors.backgroundCanvas,
   },
 })
 
